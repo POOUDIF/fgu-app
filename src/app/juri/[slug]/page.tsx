@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition } from "@/lib/types";
 
 interface EntryRow {
@@ -41,7 +42,10 @@ export default async function JuriLombaPage({ params }: { params: Promise<{ slug
     <div className="stack" style={{ marginTop: 12 }}>
       <div className="row between">
         <div>
-          <h2>{comp.name}</h2>
+          <div className="row" style={{ alignItems: "center" }}>
+            <CompIcon name={comp.name} size={36} />
+            <h2 style={{ margin: 0 }}>{comp.name}</h2>
+          </div>
           <div className="muted">
             {comp.age_label} · Dinilai {done}/{entries.length}
           </div>

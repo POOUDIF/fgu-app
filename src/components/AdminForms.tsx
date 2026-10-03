@@ -1,16 +1,21 @@
 "use client";
 
+import { useRef, useState, useTransition } from "react";
 import { ActionForm, SubmitButton } from "./ActionForm";
+import { DeleteButton } from "./DeleteButton";
 import {
   addPenalty,
+  createAccount,
+  deleteAccount,
   deletePenalty,
+  resetPassword,
   saveJudgeAssignments,
   setEntryStatus,
   setPublished,
   updateProfile,
 } from "@/app/actions/admin";
 import { ROLE_LABEL } from "@/lib/utils";
-import type { Role } from "@/lib/types";
+import type { ActionState, Role } from "@/lib/types";
 
 export function PublishButton({ competitionId, published }: { competitionId: string; published: boolean }) {
   return (
@@ -161,5 +166,167 @@ export function JudgeAssignForm({
         <SubmitButton>Simpan penugasan</SubmitButton>
       </div>
     </ActionForm>
+  );
+}
+
+const DEFAULT_PASSWORD = "kosong123";
+
+export function CreateAccountDialog({
+  villages,
+  competitions,
+}: {
+  villages: { id: string; name: string }[];
+  competitions: { id: string; name: string }[];
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [role, setRole] = useState<"judge" | "village_admin">("judge");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function close() {
+    dialog.current?.close();
+    setError(null);
+  }
+
+  return (
+    <>
+      <div className="row between">
+        <h2 style={{ margin: 0 }}>Akun</h2>
+        <button
+          type="button"
+          className="btn primary"
+          onClick={() => {
+            setSuccess(null);
+            dialog.current?.showModal();
+          }}
+        >
+          + Buat Akun
+        </button>
+      </div>
+      {success && <div className="alert ok">{success}</div>}
+
+      <dialog ref={dialog} className="modal">
+        <form
+          ref={formRef}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget);
+            startTransition(async () => {
+              const res: ActionState = await createAccount(fd);
+              if (res.ok) {
+                setSuccess(res.message ?? "Akun dibuat.");
+                formRef.current?.reset();
+                setRole("judge");
+                close();
+              } else setError(res.error ?? "Terjadi kesalahan.");
+            });
+          }}
+        >
+          <h2>Buat akun baru</h2>
+          <div className="stack">
+            <div>
+              <label htmlFor="ca-role">Peran</label>
+              <select
+                id="ca-role"
+                name="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as "judge" | "village_admin")}
+              >
+                <option value="judge">Juri</option>
+                <option value="village_admin">Admin Desa</option>
+              </select>
+            </div>
+            {role === "village_admin" ? (
+              <div>
+                <label htmlFor="ca-village">Desa</label>
+                <select id="ca-village" name="village_id" required defaultValue="">
+                  <option value="" disabled>
+                    Pilih desa…
+                  </option>
+                  {villages.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label>Lomba yang dinilai</label>
+                <div className="checks">
+                  {competitions.map((c) => (
+                    <label key={c.id} className="check">
+                      <input type="checkbox" name="competition" value={c.id} />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <label htmlFor="ca-name">Nama (opsional)</label>
+              <input id="ca-name" name="full_name" type="text" placeholder="Kosongkan untuk nama otomatis" />
+              <div className="muted small">
+                Otomatis: Juri → &ldquo;Juri Lomba &lt;lomba pertama&gt;&rdquo;, Admin Desa →
+                &ldquo;Admin Desa &lt;nama desa&gt;&rdquo;.
+              </div>
+            </div>
+            <div>
+              <label htmlFor="ca-email">Email</label>
+              <input id="ca-email" name="email" type="email" required autoComplete="off" />
+            </div>
+            <div>
+              <label htmlFor="ca-pass">Kata sandi</label>
+              <input
+                id="ca-pass"
+                name="password"
+                type="text"
+                required
+                minLength={6}
+                defaultValue={DEFAULT_PASSWORD}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          {error && <div className="alert err">{error}</div>}
+          <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+            <button type="button" className="btn ghost" onClick={close} disabled={pending}>
+              Batal
+            </button>
+            <button type="submit" className="btn primary" disabled={pending}>
+              {pending ? "Membuat…" : "Buat akun"}
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
+  );
+}
+
+export function AccountActions({ profile, isSelf }: { profile: { id: string; role: Role }; isSelf: boolean }) {
+  const canDelete = !isSelf && profile.role !== "super_admin";
+  return (
+    <div className="row between" style={{ marginTop: 10, alignItems: "flex-start" }}>
+      <details>
+        <summary>Ganti kata sandi</summary>
+        <ActionForm action={resetPassword} resetOnSuccess>
+          <input type="hidden" name="id" value={profile.id} />
+          <div className="row" style={{ marginTop: 8 }}>
+            <input name="password" type="text" required minLength={6} placeholder="Kata sandi baru" autoComplete="off" />
+            <SubmitButton className="btn soft sm">Simpan</SubmitButton>
+          </div>
+        </ActionForm>
+      </details>
+      {canDelete && (
+        <DeleteButton
+          action={deleteAccount}
+          id={profile.id}
+          confirm="Hapus akun ini secara permanen? Tindakan tidak dapat dibatalkan."
+          label="Hapus akun"
+        />
+      )}
+    </div>
   );
 }

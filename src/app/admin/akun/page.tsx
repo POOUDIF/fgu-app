@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/auth";
-import { JudgeAssignForm, ProfileForm } from "@/components/AdminForms";
+import { AccountActions, CreateAccountDialog, JudgeAssignForm, ProfileForm } from "@/components/AdminForms";
 import type { Profile, Village } from "@/lib/types";
 
 export default async function AdminAkun() {
@@ -22,14 +22,12 @@ export default async function AdminAkun() {
 
   return (
     <div className="stack">
-      <div className="alert info">
-        <b>Membuat akun baru:</b> Supabase Dashboard → Authentication → Users → Add user (isi email
-        &amp; kata sandi, centang Auto Confirm). Akun baru otomatis berperan <b>Juri</b> tanpa
-        penugasan; ubah perannya di sini. Untuk Admin Desa, pilih desanya.
-      </div>
-
       <div className="card">
-        <h2>Akun ({profiles.length})</h2>
+        <CreateAccountDialog
+          villages={villages.map((v) => ({ id: v.id, name: v.name }))}
+          competitions={comps}
+        />
+        <p className="muted small">{profiles.length} akun terdaftar.</p>
         <div className="stack">
           {profiles.map((p) => (
             <div key={p.id} className="card" style={{ boxShadow: "none" }}>
@@ -38,6 +36,7 @@ export default async function AdminAkun() {
                 villages={villages.map((v) => ({ id: v.id, name: v.name }))}
                 isSelf={p.id === user.id}
               />
+              <AccountActions profile={p} isSelf={p.id === user.id} />
             </div>
           ))}
         </div>
@@ -47,7 +46,7 @@ export default async function AdminAkun() {
         <h2>Penugasan juri</h2>
         {judges.length === 0 ? (
           <p className="muted">
-            Belum ada akun berperan Juri. Buat akun lalu atur perannya di atas.
+            Belum ada akun berperan Juri. Buat akun Juri dengan tombol “Buat Akun” di atas.
           </p>
         ) : (
           <div className="stack">

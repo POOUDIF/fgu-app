@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { registrationStatus } from "@/lib/utils";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition, EventRow } from "@/lib/types";
 
 interface Row {
@@ -80,7 +81,10 @@ export default async function DesaHome() {
               {rows.map(({ c, registered, target, incomplete }) => (
                 <tr key={c.id}>
                   <td>
-                    <b>{c.name}</b>
+                    <div className="row" style={{ alignItems: "center", gap: 8 }}>
+                      <CompIcon name={c.name} size={28} />
+                      <b>{c.name}</b>
+                    </div>
                   </td>
                   <td className="muted">{c.age_label}</td>
                   <td>

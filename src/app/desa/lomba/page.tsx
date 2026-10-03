@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition } from "@/lib/types";
 
 export default async function LombaListPage() {
@@ -23,7 +24,8 @@ export default async function LombaListPage() {
         const target = c.slots.length || c.max_entries_per_village;
         return (
           <Link key={c.id} href={`/desa/lomba/${c.slug}`} className="card comp">
-            <div className="row">
+            <div className="row" style={{ alignItems: "center" }}>
+              <CompIcon name={c.name} />
               <span className="chip">{c.cluster ?? "Lomba"}</span>
               {c.submission_mode === "online" && <span className="chip yellow">Online</span>}
             </div>

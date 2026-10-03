@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtScore, registrationStatus } from "@/lib/utils";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition, EventRow, Village } from "@/lib/types";
 
 interface Winner {
@@ -74,7 +75,8 @@ export default async function Home() {
           <div className="grid g3">
             {comps.map((c) => (
               <Link key={c.id} href={`/lomba/${c.slug}`} className="card comp">
-                <div className="row">
+                <div className="row" style={{ alignItems: "center" }}>
+                  <CompIcon name={c.name} />
                   <span className="chip">{c.cluster ?? "Lomba"}</span>
                   {c.submission_mode === "online" && <span className="chip yellow">Online</span>}
                   {c.results_published && <span className="chip green">Hasil tersedia</span>}

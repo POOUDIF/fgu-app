@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { StatusButton } from "@/components/AdminForms";
 import { GENDER_LABEL } from "@/lib/utils";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition, Participant, Village } from "@/lib/types";
 
 interface EntryRow {
@@ -141,7 +142,10 @@ export default async function AdminPeserta({
                   return (
                     <tr key={e.id}>
                       <td>
-                        <b>{e.competition?.name}</b>
+                        <div className="row" style={{ alignItems: "center", gap: 8 }}>
+                          <CompIcon name={e.competition?.name} size={28} />
+                          <b>{e.competition?.name}</b>
+                        </div>
                         {e.slot && (
                           <div>
                             <span className="chip">{e.slot.label}</span>

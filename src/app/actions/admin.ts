@@ -159,3 +159,58 @@ export async function updateSiteContent(fd: FormData): Promise<ActionState> {
   revalidatePath("/");
   return { ok: true, message: "Konten beranda disimpan." };
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function createAccount(fd: FormData): Promise<ActionState> {
+  const ctx = await adminCtx();
+  if (!ctx) return NO_ACCESS;
+  const email = String(fd.get("email") ?? "").trim();
+  const password = String(fd.get("password") ?? "");
+  const full_name = String(fd.get("full_name") ?? "").trim();
+  const role = String(fd.get("role") ?? "");
+  const village_id = String(fd.get("village_id") ?? "") || null;
+  const competitionIds = fd.getAll("competition").map(String).filter(Boolean);
+
+  if (role !== "judge" && role !== "village_admin") return { error: "Pilih peran Juri atau Admin Desa." };
+  if (!EMAIL_RE.test(email)) return { error: "Format email tidak valid." };
+  if (password.length < 6) return { error: "Kata sandi minimal 6 karakter." };
+  if (role === "village_admin" && !village_id) return { error: "Admin Desa wajib memilih desa." };
+
+  const { error } = await ctx.supabase.rpc("admin_create_account", {
+    p_email: email,
+    p_password: password,
+    p_full_name: full_name || null,
+    p_role: role,
+    p_village_id: role === "village_admin" ? village_id : null,
+    p_competition_ids: role === "judge" && competitionIds.length ? competitionIds : null,
+  });
+  if (error) return { error: error.message };
+  refresh();
+  return { ok: true, message: `Akun dibuat. Email: ${email} · Kata sandi awal: ${password}` };
+}
+
+export async function resetPassword(fd: FormData): Promise<ActionState> {
+  const ctx = await adminCtx();
+  if (!ctx) return NO_ACCESS;
+  const p_user_id = String(fd.get("id") ?? "");
+  const p_password = String(fd.get("password") ?? "");
+  if (p_password.length < 6) return { error: "Kata sandi minimal 6 karakter." };
+
+  const { error } = await ctx.supabase.rpc("admin_reset_password", { p_user_id, p_password });
+  if (error) return { error: error.message };
+  refresh();
+  return { ok: true, message: `Kata sandi diganti menjadi: ${p_password}` };
+}
+
+export async function deleteAccount(fd: FormData): Promise<ActionState> {
+  const ctx = await adminCtx();
+  if (!ctx) return NO_ACCESS;
+  const p_user_id = String(fd.get("id") ?? "");
+  if (p_user_id === ctx.userId) return { error: "Anda tidak dapat menghapus akun Anda sendiri." };
+
+  const { error } = await ctx.supabase.rpc("admin_delete_account", { p_user_id });
+  if (error) return { error: error.message };
+  refresh();
+  return { ok: true };
+}

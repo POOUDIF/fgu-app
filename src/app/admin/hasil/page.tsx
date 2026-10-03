@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { PenaltyForm, PublishButton } from "@/components/AdminForms";
 import { fmtScore } from "@/lib/utils";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition } from "@/lib/types";
 
 interface Result {
@@ -56,7 +57,10 @@ export default async function AdminHasil() {
           <div className="card" key={c.id}>
             <div className="row between">
               <div>
-                <h2 style={{ marginBottom: 2 }}>{c.name}</h2>
+                <div className="row" style={{ alignItems: "center" }}>
+                  <CompIcon name={c.name} size={32} />
+                  <h2 style={{ marginBottom: 2 }}>{c.name}</h2>
+                </div>
                 <div className="muted small">
                   {list.length}/{registered} pendaftaran sudah dinilai · pemenang: {c.winner_count} teratas
                   {c.results_published && <> · <span className="chip green">Terpublikasi</span></>}

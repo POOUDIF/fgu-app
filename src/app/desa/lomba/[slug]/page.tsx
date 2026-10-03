@@ -6,6 +6,7 @@ import { EntryForm } from "@/components/EntryForm";
 import { DeleteButton } from "@/components/DeleteButton";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { beforeDeadline, fmtDateTime, GENDER_LABEL, isEligible, registrationStatus } from "@/lib/utils";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition, EventRow, Participant, Slot } from "@/lib/types";
 
 type CompFull = Competition & { slots: Slot[] };
@@ -71,7 +72,10 @@ export default async function LombaDetailPage({ params }: { params: Promise<{ sl
               <span className="chip">{comp.cluster}</span>
               {comp.submission_mode === "online" && <span className="chip yellow">Online</span>}
             </div>
-            <h2 style={{ marginTop: 8 }}>{comp.name}</h2>
+            <div className="row" style={{ alignItems: "center", marginTop: 8 }}>
+              <CompIcon name={comp.name} size={40} />
+              <h2 style={{ margin: 0 }}>{comp.name}</h2>
+            </div>
           </div>
           <Link className="btn ghost sm" href="/desa/lomba">
             ← Semua lomba

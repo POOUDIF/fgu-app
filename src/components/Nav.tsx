@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { getCtx, homeFor } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/utils";
@@ -9,7 +10,7 @@ export async function Nav() {
     <header className="nav">
       <div className="navin">
         <Link href="/" className="brand">
-          <span className="logo">FGU</span>
+          <Image className="logo-img" src="/icons/logo-fgu.png" alt="Logo FGU" width={44} height={44} priority />
           <span>
             Festival Generasi Unggul
             <small>FGU 3.0 · Bekasi Barat</small>

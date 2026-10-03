@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDateTime, fmtScore } from "@/lib/utils";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition, Criterion, Slot } from "@/lib/types";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -43,7 +44,10 @@ export default async function LombaPublik({ params }: { params: Promise<{ slug: 
           <span className="chip">{c.cluster}</span>
           {c.submission_mode === "online" && <span className="chip yellow">Online</span>}
         </div>
-        <h1 style={{ marginTop: 8 }}>{c.name}</h1>
+        <div className="row" style={{ alignItems: "center", marginTop: 8 }}>
+          <CompIcon name={c.name} size={44} />
+          <h1 style={{ margin: 0 }}>{c.name}</h1>
+        </div>
         <ul style={{ paddingLeft: 18, margin: 0 }}>
           <li>
             <b>Kategori:</b> {c.age_label}

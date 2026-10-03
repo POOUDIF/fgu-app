@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
+import { CompIcon } from "@/lib/compIcon";
 import type { Competition } from "@/lib/types";
 
 interface Progress {
@@ -44,7 +45,10 @@ export default async function JuriHome() {
           const pct = total ? Math.round((done / total) * 100) : 0;
           return (
             <Link key={c.id} href={`/juri/${c.slug}`} className="card comp">
-              <span className="chip">{c.cluster ?? "Lomba"}</span>
+              <div className="row" style={{ alignItems: "center" }}>
+                <CompIcon name={c.name} />
+                <span className="chip">{c.cluster ?? "Lomba"}</span>
+              </div>
               <h3>{c.name}</h3>
               <div className="muted small">{c.age_label}</div>
               {c.results_published && <span className="chip gray">Hasil sudah dipublikasikan</span>}
