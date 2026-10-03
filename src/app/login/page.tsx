@@ -1,3 +1,5 @@
+import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCtx, homeFor } from "@/lib/auth";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
@@ -10,29 +12,36 @@ export default async function LoginPage() {
   if (user && profile) redirect(homeFor(profile.role));
 
   return (
-    <div className="container">
-      <div className="card login">
-        <h1 style={{ fontSize: "1.6rem" }}>Masuk</h1>
-        <p className="muted">
-          Untuk Admin Daerah, Admin Desa, dan Juri. Akun dibuat oleh panitia.
-        </p>
-        <ActionForm action={login}>
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input id="email" name="email" type="email" autoComplete="email" required />
-          </div>
-          <div className="field">
-            <label htmlFor="password">Kata sandi</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-          <SubmitButton pendingText="Memeriksa…">Masuk</SubmitButton>
-        </ActionForm>
+    <div className="login-screen">
+      <div className="login-box">
+        <div className="login-side">
+          <Image src="/icons/logo-fgu.png" alt="Logo FGU 3.0" width={150} height={150} priority />
+          <h1>FGU 3.0</h1>
+          <p>
+            Portal Festival Generasi Unggulan Bekasi Barat 2026 untuk pendaftaran desa, pengumpulan karya,
+            penilaian juri, dan rekap pemenang.
+          </p>
+          <Link href="/" className="btn white lg" style={{ color: "var(--blue2)" }}>
+            ← Kembali ke halaman depan
+          </Link>
+        </div>
+        <div className="login-form">
+          <h2>Masuk ke Portal</h2>
+          <p className="muted">Gunakan akun yang diberikan panitia.</p>
+          <ActionForm action={login}>
+            <div className="field">
+              <label htmlFor="email">Email</label>
+              <input id="email" name="email" type="email" autoComplete="email" placeholder="contoh: daerah@fgu.id" required />
+            </div>
+            <div className="field">
+              <label htmlFor="password">Password</label>
+              <input id="password" name="password" type="password" autoComplete="current-password" required />
+            </div>
+            <SubmitButton className="btn primary lg login-btn" pendingText="Memeriksa…">
+              Login
+            </SubmitButton>
+          </ActionForm>
+        </div>
       </div>
     </div>
   );

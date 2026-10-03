@@ -11,7 +11,7 @@ export default async function DashboardRedirect() {
       <div className="card">
         <h2>Profil belum tersedia</h2>
         <p className="muted">
-          Akun Anda sudah login tetapi belum memiliki profil. Hubungi Admin Daerah.
+          Akun Anda sudah login tetapi belum memiliki profil. Hubungi panitia.
         </p>
         <form action="/auth/signout" method="post">
           <button className="btn ghost" type="submit">

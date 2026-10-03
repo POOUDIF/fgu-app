@@ -28,7 +28,7 @@ export default async function JuriHome() {
       <div className="card" style={{ marginTop: 16 }}>
         <h2>Belum ada lomba yang ditugaskan</h2>
         <p className="muted">
-          Hubungi Admin Daerah untuk menugaskan Anda ke satu atau beberapa lomba.
+          Hubungi panitia untuk menugaskan Anda ke satu atau beberapa lomba.
         </p>
       </div>
     );

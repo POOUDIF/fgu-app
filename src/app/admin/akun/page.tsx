@@ -1,9 +1,11 @@
-import { requireRole } from "@/lib/auth";
+import { isSuper, requireAdmin } from "@/lib/auth";
 import { AccountActions, CreateAccountDialog, JudgeAssignForm, ProfileForm } from "@/components/AdminForms";
+import { ROLE_LABEL } from "@/lib/utils";
 import type { Profile, Village } from "@/lib/types";
 
 export default async function AdminAkun() {
-  const { supabase, user } = await requireRole("super_admin");
+  const { supabase, user, profile: me } = await requireAdmin();
+  const superAdmin = isSuper(me.role);
 
   const [profRes, vilRes, compRes, asgRes] = await Promise.all([
     supabase.from("profiles").select("*").order("created_at"),
@@ -26,19 +28,35 @@ export default async function AdminAkun() {
         <CreateAccountDialog
           villages={villages.map((v) => ({ id: v.id, name: v.name }))}
           competitions={comps}
+          canCreateRegional={superAdmin}
         />
         <p className="muted small">{profiles.length} akun terdaftar.</p>
         <div className="stack">
-          {profiles.map((p) => (
-            <div key={p.id} className="card" style={{ boxShadow: "none" }}>
-              <ProfileForm
-                profile={p}
-                villages={villages.map((v) => ({ id: v.id, name: v.name }))}
-                isSelf={p.id === user.id}
-              />
-              <AccountActions profile={p} isSelf={p.id === user.id} />
-            </div>
-          ))}
+          {profiles.map((p) => {
+            // Admin Daerah tidak boleh mengelola akun Super Admin / Admin Daerah.
+            const locked = !superAdmin && (p.role === "super_admin" || p.role === "regional_admin");
+            return (
+              <div key={p.id} className="card" style={{ boxShadow: "none" }}>
+                {locked ? (
+                  <div>
+                    <b>{p.full_name || p.email}</b>{" "}
+                    <span className="chip gray">{ROLE_LABEL[p.role]}</span>
+                    <div className="muted small">{p.email}</div>
+                  </div>
+                ) : (
+                  <>
+                    <ProfileForm
+                      profile={p}
+                      villages={villages.map((v) => ({ id: v.id, name: v.name }))}
+                      isSelf={p.id === user.id}
+                      canAssignAdmin={superAdmin}
+                    />
+                    <AccountActions profile={p} isSelf={p.id === user.id} />
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

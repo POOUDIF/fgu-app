@@ -1,22 +1,22 @@
-import { requireRole } from "@/lib/auth";
-import { SubNav } from "@/components/SubNav";
+import { requireAdmin } from "@/lib/auth";
+import { ROLE_LABEL } from "@/lib/utils";
+import { PortalShell } from "@/components/PortalShell";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requireRole("super_admin");
+  const { profile } = await requireAdmin();
   return (
-    <div className="container page">
-      <span className="chip">Admin Daerah</span>
-      <h1 style={{ marginTop: 6 }}>Panel Panitia</h1>
-      <SubNav
-        items={[
-          { href: "/admin", label: "Dashboard Live", exact: true },
-          { href: "/admin/peserta", label: "Peserta & Pendaftaran" },
-          { href: "/admin/hasil", label: "Hasil & Publikasi" },
-          { href: "/admin/akun", label: "Akun & Juri" },
-          { href: "/admin/pengaturan", label: "Pengaturan" },
-        ]}
-      />
+    <PortalShell
+      badge={ROLE_LABEL[profile.role]}
+      title="Panel Panitia"
+      items={[
+        { href: "/admin", label: "Dashboard Live", icon: "dashboard", exact: true },
+        { href: "/admin/peserta", label: "Peserta & Pendaftaran", icon: "users" },
+        { href: "/admin/hasil", label: "Hasil & Publikasi", icon: "trophy" },
+        { href: "/admin/akun", label: "Akun & Juri", icon: "key" },
+        { href: "/admin/pengaturan", label: "Pengaturan", icon: "settings" },
+      ]}
+    >
       {children}
-    </div>
+    </PortalShell>
   );
 }

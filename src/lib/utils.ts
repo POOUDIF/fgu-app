@@ -11,7 +11,8 @@ export const LEVEL_LABEL: Record<Level, string> = {
 };
 export const LEVELS: Level[] = ["PAUD", "TK", "SD", "SMP", "SMA", "PGM"];
 export const ROLE_LABEL = {
-  super_admin: "Admin Daerah",
+  super_admin: "Super Admin",
+  regional_admin: "Admin Daerah",
   village_admin: "Admin Desa",
   judge: "Juri",
 } as const;

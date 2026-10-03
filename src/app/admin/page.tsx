@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { LiveFeed, type Submission } from "@/components/LiveFeed";
 
 interface Progress {
@@ -11,7 +11,7 @@ interface Progress {
 }
 
 export default async function AdminLive() {
-  const { supabase } = await requireRole("super_admin");
+  const { supabase } = await requireAdmin();
 
   const [partRes, entRes, subRes, progRes, feedRes] = await Promise.all([
     supabase.from("participants").select("id", { count: "exact", head: true }),

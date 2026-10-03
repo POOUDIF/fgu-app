@@ -1,16 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCtx } from "@/lib/auth";
+import { getCtx, isAdmin, isSuper } from "@/lib/auth";
 import { dbError, fromLocalInput } from "@/lib/utils";
 import type { ActionState, Role } from "@/lib/types";
 
+/** Super Admin atau Admin Daerah. */
 async function adminCtx() {
   const { supabase, user, profile } = await getCtx();
-  if (!user || !profile || profile.role !== "super_admin") return null;
-  return { supabase, userId: user.id };
+  if (!user || !profile || !isAdmin(profile.role)) return null;
+  return { supabase, userId: user.id, role: profile.role };
 }
-const NO_ACCESS: ActionState = { error: "Hanya Admin Daerah yang dapat melakukan ini." };
+/** Khusus Super Admin (koreksi nilai, pengurangan nilai, akun admin). */
+async function superCtx() {
+  const ctx = await adminCtx();
+  return ctx && isSuper(ctx.role) ? ctx : null;
+}
+const NO_ACCESS: ActionState = { error: "Hanya panitia (Super Admin / Admin Daerah) yang dapat melakukan ini." };
+const NO_SUPER: ActionState = { error: "Hanya Super Admin yang dapat melakukan ini." };
 const refresh = () => revalidatePath("/admin", "layout");
 
 export async function setEntryStatus(fd: FormData): Promise<ActionState> {
@@ -31,8 +38,8 @@ export async function setEntryStatus(fd: FormData): Promise<ActionState> {
 }
 
 export async function addPenalty(fd: FormData): Promise<ActionState> {
-  const ctx = await adminCtx();
-  if (!ctx) return NO_ACCESS;
+  const ctx = await superCtx();
+  if (!ctx) return NO_SUPER;
   const entry_id = String(fd.get("entry_id") ?? "");
   const points = Number(String(fd.get("points") ?? "").replace(",", "."));
   const reason = String(fd.get("reason") ?? "").trim() || null;
@@ -45,8 +52,8 @@ export async function addPenalty(fd: FormData): Promise<ActionState> {
 }
 
 export async function deletePenalty(fd: FormData): Promise<ActionState> {
-  const ctx = await adminCtx();
-  if (!ctx) return NO_ACCESS;
+  const ctx = await superCtx();
+  if (!ctx) return NO_SUPER;
   const { error } = await ctx.supabase.from("penalties").delete().eq("id", String(fd.get("id") ?? ""));
   if (error) return { error: dbError(error) };
   refresh();
@@ -74,9 +81,16 @@ export async function updateProfile(fd: FormData): Promise<ActionState> {
   const role = String(fd.get("role") ?? "") as Role;
   const village_id = String(fd.get("village_id") ?? "") || null;
 
-  if (!["super_admin", "village_admin", "judge"].includes(role)) return { error: "Peran tidak valid." };
-  if (id === ctx.userId && role !== "super_admin")
-    return { error: "Anda tidak dapat menurunkan peran akun Anda sendiri." };
+  if (!["super_admin", "regional_admin", "village_admin", "judge"].includes(role))
+    return { error: "Peran tidak valid." };
+  if (id === ctx.userId && role !== ctx.role)
+    return { error: "Anda tidak dapat mengubah peran akun Anda sendiri." };
+  if (!isSuper(ctx.role)) {
+    // Admin Daerah tidak boleh menyentuh akun admin maupun memberi peran admin.
+    if (isAdmin(role)) return { error: "Hanya Super Admin yang dapat memberi peran admin." };
+    const { data: target } = await ctx.supabase.from("profiles").select("role").eq("id", id).maybeSingle();
+    if (!target || isAdmin(target.role as Role)) return NO_SUPER;
+  }
   if (role === "village_admin" && !village_id) return { error: "Admin Desa wajib dihubungkan ke desa." };
 
   const { error } = await ctx.supabase
@@ -160,6 +174,11 @@ export async function updateSiteContent(fd: FormData): Promise<ActionState> {
   return { ok: true, message: "Konten beranda disimpan." };
 }
 
+async function targetIsAdmin(supabase: Awaited<ReturnType<typeof getCtx>>["supabase"], id: string) {
+  const { data } = await supabase.from("profiles").select("role").eq("id", id).maybeSingle();
+  return !data || isAdmin(data.role as Role);
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function createAccount(fd: FormData): Promise<ActionState> {
@@ -172,7 +191,9 @@ export async function createAccount(fd: FormData): Promise<ActionState> {
   const village_id = String(fd.get("village_id") ?? "") || null;
   const competitionIds = fd.getAll("competition").map(String).filter(Boolean);
 
-  if (role !== "judge" && role !== "village_admin") return { error: "Pilih peran Juri atau Admin Desa." };
+  if (role === "regional_admin" && !isSuper(ctx.role)) return NO_SUPER;
+  if (role !== "judge" && role !== "village_admin" && role !== "regional_admin")
+    return { error: "Pilih peran Juri, Admin Desa, atau Admin Daerah." };
   if (!EMAIL_RE.test(email)) return { error: "Format email tidak valid." };
   if (password.length < 6) return { error: "Kata sandi minimal 6 karakter." };
   if (role === "village_admin" && !village_id) return { error: "Admin Desa wajib memilih desa." };
@@ -196,6 +217,7 @@ export async function resetPassword(fd: FormData): Promise<ActionState> {
   const p_user_id = String(fd.get("id") ?? "");
   const p_password = String(fd.get("password") ?? "");
   if (p_password.length < 6) return { error: "Kata sandi minimal 6 karakter." };
+  if (!isSuper(ctx.role) && (await targetIsAdmin(ctx.supabase, p_user_id))) return NO_SUPER;
 
   const { error } = await ctx.supabase.rpc("admin_reset_password", { p_user_id, p_password });
   if (error) return { error: error.message };
@@ -208,9 +230,44 @@ export async function deleteAccount(fd: FormData): Promise<ActionState> {
   if (!ctx) return NO_ACCESS;
   const p_user_id = String(fd.get("id") ?? "");
   if (p_user_id === ctx.userId) return { error: "Anda tidak dapat menghapus akun Anda sendiri." };
+  if (!isSuper(ctx.role) && (await targetIsAdmin(ctx.supabase, p_user_id))) return NO_SUPER;
 
   const { error } = await ctx.supabase.rpc("admin_delete_account", { p_user_id });
   if (error) return { error: error.message };
   refresh();
   return { ok: true };
+}
+
+export async function editScore(fd: FormData): Promise<ActionState> {
+  const ctx = await superCtx();
+  if (!ctx) return NO_SUPER;
+  const p_score_id = String(fd.get("score_id") ?? "");
+  const raw = String(fd.get("new_score") ?? "").trim().replace(",", ".");
+  const p_new_score = raw === "" ? NaN : Number(raw);
+  const p_reason = String(fd.get("reason") ?? "").trim();
+  if (!p_score_id) return { error: "Nilai tidak ditemukan." };
+  if (!Number.isFinite(p_new_score) || p_new_score < 0) return { error: "Nilai baru tidak valid." };
+  if (!p_reason) return { error: "Alasan koreksi wajib diisi." };
+
+  const { error } = await ctx.supabase.rpc("admin_edit_score", { p_score_id, p_new_score, p_reason });
+  if (error) return { error: error.message };
+  refresh();
+  revalidatePath("/");
+  return { ok: true, message: "Nilai dikoreksi." };
+}
+
+export async function resetJudgeEntry(fd: FormData): Promise<ActionState> {
+  const ctx = await superCtx();
+  if (!ctx) return NO_SUPER;
+  const p_entry_id = String(fd.get("entry_id") ?? "");
+  const p_judge_id = String(fd.get("judge_id") ?? "");
+  const p_reason = String(fd.get("reason") ?? "").trim();
+  if (!p_entry_id || !p_judge_id) return { error: "Data tidak lengkap." };
+  if (!p_reason) return { error: "Alasan reset wajib diisi." };
+
+  const { error } = await ctx.supabase.rpc("admin_reset_judge_entry", { p_entry_id, p_judge_id, p_reason });
+  if (error) return { error: error.message };
+  refresh();
+  revalidatePath("/");
+  return { ok: true, message: "Input juri direset." };
 }

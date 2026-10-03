@@ -1,6 +1,8 @@
-import { requireRole } from "@/lib/auth";
+import Link from "next/link";
+import { isSuper, requireAdmin } from "@/lib/auth";
 import { PenaltyForm, PublishButton } from "@/components/AdminForms";
 import { fmtScore } from "@/lib/utils";
+import { ExportButton } from "@/components/ExportButton";
 import { CompIcon } from "@/lib/compIcon";
 import type { Competition } from "@/lib/types";
 
@@ -26,7 +28,8 @@ interface Penalty {
 }
 
 export default async function AdminHasil() {
-  const { supabase } = await requireRole("super_admin");
+  const { supabase, profile } = await requireAdmin();
+  const superAdmin = isSuper(profile.role);
 
   const [compRes, resRes, penRes, entRes] = await Promise.all([
     supabase.from("competitions").select("*").order("sort_order"),
@@ -43,6 +46,10 @@ export default async function AdminHasil() {
 
   return (
     <div className="stack">
+      <div className="row between">
+        <span className="muted small">Unduh rekap nilai seluruh lomba dalam satu file.</span>
+        <ExportButton href="/admin/hasil/export" />
+      </div>
       <div className="alert info">
         Nilai akhir = rata-rata total nilai seluruh juri − pengurangan nilai. Hasil baru terlihat oleh
         Admin Desa dan publik setelah Anda menekan <b>Publikasikan hasil</b>. Setelah publikasi, juri
@@ -66,7 +73,12 @@ export default async function AdminHasil() {
                   {c.results_published && <> · <span className="chip green">Terpublikasi</span></>}
                 </div>
               </div>
-              <PublishButton competitionId={c.id} published={c.results_published} />
+              <div className="row" style={{ alignItems: "center" }}>
+                <Link className="btn white sm" href={`/admin/hasil/${c.slug}`}>
+                  Lihat rincian nilai
+                </Link>
+                <PublishButton competitionId={c.id} published={c.results_published} />
+              </div>
             </div>
 
             {list.length === 0 ? (
@@ -119,6 +131,7 @@ export default async function AdminHasil() {
                               </td>
                               <td style={{ minWidth: 260 }}>
                                 <PenaltyForm
+                                  canEdit={superAdmin}
                                   entryId={r.entry_id}
                                   penalties={penalties.filter((p) => p.entry_id === r.entry_id)}
                                 />

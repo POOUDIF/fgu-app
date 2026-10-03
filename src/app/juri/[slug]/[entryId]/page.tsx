@@ -65,14 +65,14 @@ export default async function NilaiPage({
       </div>
 
       <div className="card">
-        <div className="row">
+        <div className="row" style={{ alignItems: "center" }}>
           <span className="chip">{entry.village?.name}</span>
           {entry.slot && <span className="chip gray">{entry.slot.label}</span>}
+          <h3 style={{ margin: 0 }}>
+            {entry.team_name ? `${entry.team_name} — ` : ""}
+            {names || "—"}
+          </h3>
         </div>
-        <h3 style={{ marginTop: 8 }}>
-          {entry.team_name ? `${entry.team_name} — ` : ""}
-          {names || "—"}
-        </h3>
         {entry.submission_url && (
           <a href={entry.submission_url} target="_blank" rel="noreferrer" style={{ color: "var(--blue)" }}>
             Buka karya ↗
@@ -111,7 +111,7 @@ export default async function NilaiPage({
               </table>
             </div>
             <p style={{ marginTop: 12 }}>
-              Total: <b style={{ fontSize: "1.3rem" }}>{fmtScore(total)}</b>
+              <b style={{ fontSize: "1.3rem" }}>Total Nilai: {fmtScore(total)}</b>
             </p>
           </>
         ) : (

@@ -1,4 +1,4 @@
-export type Role = "super_admin" | "village_admin" | "judge";
+export type Role = "super_admin" | "regional_admin" | "village_admin" | "judge";
 export type Gender = "L" | "P";
 export type Level = "PAUD" | "TK" | "SD" | "SMP" | "SMA" | "PGM";
 

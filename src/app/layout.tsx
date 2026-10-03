@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
@@ -12,12 +13,21 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
+    <html lang="id" data-scroll-behavior="smooth">
       <body>
         <Nav />
         <main>{children}</main>
         <footer className="footer">
-          <div className="container">Festival Generasi Unggul (FGU) 3.0 · Bekasi Barat</div>
+          <div className="container footer-in">
+            <div className="footer-brand">
+              <Image src="/icons/logo-fgu.png" alt="Logo FGU" width={48} height={48} />
+              <div>
+                <b>FGU 3.0</b>
+                <span>Festival Generasi Unggul • Bekasi Barat 2026</span>
+              </div>
+            </div>
+            <span className="footer-social">@festivalgenerasiunggul • @jamsirat</span>
+          </div>
         </footer>
       </body>
     </html>

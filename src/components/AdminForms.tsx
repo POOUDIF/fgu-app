@@ -54,9 +54,12 @@ export function StatusButton({ entryId, disqualified }: { entryId: string; disqu
 export function PenaltyForm({
   entryId,
   penalties,
+  canEdit,
 }: {
   entryId: string;
   penalties: { id: string; points: number; reason: string | null }[];
+  /** Hanya Super Admin yang boleh menambah/menghapus pengurangan. */
+  canEdit: boolean;
 }) {
   return (
     <details>
@@ -69,22 +72,25 @@ export function PenaltyForm({
             <span>
               −{p.points} · {p.reason || "tanpa keterangan"}
             </span>
-            <ActionForm action={deletePenalty} confirm="Hapus pengurangan ini?">
-              <input type="hidden" name="id" value={p.id} />
-              <SubmitButton className="btn danger sm" pendingText="…">
-                Hapus
-              </SubmitButton>
-            </ActionForm>
+            {canEdit && (
+              <ActionForm action={deletePenalty} confirm="Hapus pengurangan ini?">
+                <input type="hidden" name="id" value={p.id} />
+                <SubmitButton className="btn danger sm" pendingText="…">
+                  Hapus
+                </SubmitButton>
+              </ActionForm>
+            )}
           </div>
         ))}
-        <ActionForm action={addPenalty} resetOnSuccess>
+        {!canEdit && penalties.length === 0 && <span className="muted small">Tidak ada pengurangan.</span>}
+        {canEdit && <ActionForm action={addPenalty} resetOnSuccess>
           <input type="hidden" name="entry_id" value={entryId} />
           <div className="row">
             <input name="points" type="number" step="0.01" min="0.01" defaultValue={1} required style={{ width: 90 }} />
             <input name="reason" type="text" placeholder="Alasan (mis. disiplin mengganggu)" style={{ flex: 1, minWidth: 180 }} />
             <SubmitButton className="btn soft sm">Tambah</SubmitButton>
           </div>
-        </ActionForm>
+        </ActionForm>}
       </div>
     </details>
   );
@@ -94,10 +100,13 @@ export function ProfileForm({
   profile,
   villages,
   isSelf,
+  canAssignAdmin,
 }: {
   profile: { id: string; full_name: string; email: string | null; role: Role; village_id: string | null };
   villages: { id: string; name: string }[];
   isSelf: boolean;
+  /** Hanya Super Admin yang boleh memilih peran Super Admin / Admin Daerah. */
+  canAssignAdmin: boolean;
 }) {
   return (
     <ActionForm action={updateProfile}>
@@ -114,11 +123,13 @@ export function ProfileForm({
         <div>
           <label>Peran</label>
           <select name="role" defaultValue={profile.role} disabled={isSelf}>
-            {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+            {(Object.keys(ROLE_LABEL) as Role[])
+              .filter((r) => canAssignAdmin || (r !== "super_admin" && r !== "regional_admin"))
+              .map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABEL[r]}
               </option>
-            ))}
+              ))}
           </select>
           {isSelf && <input type="hidden" name="role" value={profile.role} />}
         </div>
@@ -171,16 +182,20 @@ export function JudgeAssignForm({
 
 const DEFAULT_PASSWORD = "kosong123";
 
+type NewRole = "judge" | "village_admin" | "regional_admin";
+
 export function CreateAccountDialog({
   villages,
   competitions,
+  canCreateRegional,
 }: {
+  canCreateRegional: boolean;
   villages: { id: string; name: string }[];
   competitions: { id: string; name: string }[];
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const [role, setRole] = useState<"judge" | "village_admin">("judge");
+  const [role, setRole] = useState<NewRole>("judge");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -232,10 +247,11 @@ export function CreateAccountDialog({
                 id="ca-role"
                 name="role"
                 value={role}
-                onChange={(e) => setRole(e.target.value as "judge" | "village_admin")}
+                onChange={(e) => setRole(e.target.value as NewRole)}
               >
                 <option value="judge">Juri</option>
                 <option value="village_admin">Admin Desa</option>
+                {canCreateRegional && <option value="regional_admin">Admin Daerah</option>}
               </select>
             </div>
             {role === "village_admin" ? (
@@ -252,7 +268,7 @@ export function CreateAccountDialog({
                   ))}
                 </select>
               </div>
-            ) : (
+            ) : role === "regional_admin" ? null : (
               <div>
                 <label>Lomba yang dinilai</label>
                 <div className="checks">
@@ -270,7 +286,7 @@ export function CreateAccountDialog({
               <input id="ca-name" name="full_name" type="text" placeholder="Kosongkan untuk nama otomatis" />
               <div className="muted small">
                 Otomatis: Juri → &ldquo;Juri Lomba &lt;lomba pertama&gt;&rdquo;, Admin Desa →
-                &ldquo;Admin Desa &lt;nama desa&gt;&rdquo;.
+                &ldquo;Admin Desa &lt;nama desa&gt;&rdquo;, Admin Daerah → &ldquo;Admin Daerah&rdquo;.
               </div>
             </div>
             <div>

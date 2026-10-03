@@ -1,6 +1,7 @@
-import { requireRole } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { StatusButton } from "@/components/AdminForms";
 import { GENDER_LABEL } from "@/lib/utils";
+import { ExportButton } from "@/components/ExportButton";
 import { CompIcon } from "@/lib/compIcon";
 import type { Competition, Participant, Village } from "@/lib/types";
 
@@ -22,7 +23,7 @@ export default async function AdminPeserta({
   searchParams: Promise<{ lomba?: string; desa?: string }>;
 }) {
   const sp = await searchParams;
-  const { supabase } = await requireRole("super_admin");
+  const { supabase } = await requireAdmin();
 
   let q = supabase
     .from("entries")
@@ -57,8 +58,17 @@ export default async function AdminPeserta({
     cSet.set(e.village_id, (cSet.get(e.village_id) ?? new Set()).add(e.competition_id));
   }
 
+  const exportQs = new URLSearchParams();
+  if (sp.lomba) exportQs.set("lomba", sp.lomba);
+  if (sp.desa) exportQs.set("desa", sp.desa);
+  const exportHref = `/admin/peserta/export${exportQs.size ? `?${exportQs}` : ""}`;
+
   return (
     <div className="stack">
+      <div className="row between">
+        <span className="muted small">Ekspor mengikuti filter yang sedang diterapkan.</span>
+        <ExportButton href={exportHref} />
+      </div>
       <div className="card">
         <h2>Rekap per desa</h2>
         <div className="tablewrap">

@@ -28,7 +28,7 @@ export default async function HasilDesaPage() {
   return (
     <div className="stack">
       <div className="alert info">
-        Hasil hanya tampil setelah Admin Daerah mempublikasikan nilai lomba. Di sini hanya hasil
+        Hasil hanya tampil setelah panitia mempublikasikan nilai lomba. Di sini hanya hasil
         milik desa Anda.
       </div>
       {byComp.size === 0 ? (

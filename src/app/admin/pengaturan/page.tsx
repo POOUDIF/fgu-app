@@ -1,10 +1,10 @@
-import { requireRole } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { EventForm, SiteContentForm } from "@/components/SettingsForms";
 import { registrationStatus, toLocalInput } from "@/lib/utils";
 import type { EventRow } from "@/lib/types";
 
 export default async function AdminPengaturan() {
-  const { supabase } = await requireRole("super_admin");
+  const { supabase } = await requireAdmin();
   const [evRes, contentRes] = await Promise.all([
     supabase.from("events").select("*").order("created_at").limit(1).maybeSingle(),
     supabase.from("site_content").select("key,value"),

@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/auth";
-import { SubNav } from "@/components/SubNav";
+import { PortalShell } from "@/components/PortalShell";
 
 export default async function DesaLayout({ children }: { children: React.ReactNode }) {
   const { supabase, profile } = await requireRole("village_admin");
@@ -8,7 +8,7 @@ export default async function DesaLayout({ children }: { children: React.ReactNo
     return (
       <div className="container page">
         <div className="alert err">
-          Akun Anda belum dihubungkan ke desa. Hubungi Admin Daerah.
+          Akun Anda belum dihubungkan ke desa. Hubungi panitia.
         </div>
       </div>
     );
@@ -21,22 +21,17 @@ export default async function DesaLayout({ children }: { children: React.ReactNo
     .maybeSingle();
 
   return (
-    <div className="container page">
-      <div className="row between" style={{ marginBottom: 14 }}>
-        <div>
-          <span className="chip">Admin Desa</span>
-          <h1 style={{ marginTop: 6 }}>Kontingen {village?.name ?? "—"}</h1>
-        </div>
-      </div>
-      <SubNav
-        items={[
-          { href: "/desa", label: "Ringkasan", exact: true },
-          { href: "/desa/peserta", label: "Peserta" },
-          { href: "/desa/lomba", label: "Pendaftaran Lomba" },
-          { href: "/desa/hasil", label: "Hasil" },
-        ]}
-      />
+    <PortalShell
+      badge="Admin Desa"
+      title={`Kontingen ${village?.name ?? "—"}`}
+      items={[
+        { href: "/desa", label: "Ringkasan", icon: "home", exact: true },
+        { href: "/desa/peserta", label: "Peserta", icon: "user" },
+        { href: "/desa/lomba", label: "Pendaftaran Lomba", icon: "file" },
+        { href: "/desa/hasil", label: "Hasil", icon: "trophy" },
+      ]}
+    >
       {children}
-    </div>
+    </PortalShell>
   );
 }
