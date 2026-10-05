@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCtx } from "@/lib/auth";
 import { dbError, LEVELS } from "@/lib/utils";
+import { PHOTO_BUCKET } from "@/lib/photo";
 import type { ActionState, Level } from "@/lib/types";
 
 async function villageCtx() {
@@ -33,15 +34,42 @@ function readParticipant(fd: FormData) {
   return { value: { full_name, gender, education_level, age, grade } };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** photo_path opsional; bila ada harus `${villageId}/${participantId}.(jpg|png|webp)`. */
+function readPhotoPath(fd: FormData, villageId: string, id: string) {
+  const path = String(fd.get("photo_path") ?? "").trim();
+  if (!path) return { value: null };
+  const prefix = `${villageId}/${id}.`;
+  if (!id || !path.startsWith(prefix) || !["jpg", "png", "webp"].includes(path.slice(prefix.length)))
+    return { error: "Path foto tidak valid." };
+  return { value: path };
+}
+
+async function removePhoto(supabase: Awaited<ReturnType<typeof getCtx>>["supabase"], path: string) {
+  await supabase.storage.from(PHOTO_BUCKET).remove([path]); // best-effort
+}
+
 export async function createParticipant(fd: FormData): Promise<ActionState> {
   const ctx = await villageCtx();
   if (!ctx) return NO_ACCESS;
   const r = readParticipant(fd);
   if ("error" in r) return { error: r.error };
 
+  // id dibuat di klien agar foto bisa diunggah ke path-nya sebelum baris dibuat.
+  const id = String(fd.get("id") ?? "");
+  if (id && !UUID.test(id)) return { error: "ID peserta tidak valid." };
+  const photo = id ? readPhotoPath(fd, ctx.villageId, id) : { value: null };
+  if ("error" in photo) return { error: photo.error };
+
   const { error } = await ctx.supabase
     .from("participants")
-    .insert({ ...r.value, village_id: ctx.villageId });
+    .insert({
+      ...r.value,
+      village_id: ctx.villageId,
+      ...(id && { id }),
+      photo_path: photo.value,
+    });
   if (error) return { error: dbError(error) };
 
   revalidatePath("/desa", "layout");
@@ -57,7 +85,7 @@ export async function updateParticipant(fd: FormData): Promise<ActionState> {
 
   const { data: cur } = await ctx.supabase
     .from("participants")
-    .select("gender,education_level,age,grade")
+    .select("gender,education_level,age,grade,photo_path")
     .eq("id", id)
     .maybeSingle();
   if (!cur) return { error: "Peserta tidak ditemukan." };
@@ -77,8 +105,18 @@ export async function updateParticipant(fd: FormData): Promise<ActionState> {
         "Peserta sudah terdaftar di lomba. Lepaskan dari pendaftaran dulu bila ingin mengubah jenis kelamin, jenjang, usia, atau kelas.",
     };
 
-  const { error } = await ctx.supabase.from("participants").update(r.value).eq("id", id);
+  const photo = readPhotoPath(fd, ctx.villageId, id);
+  if ("error" in photo) return { error: photo.error };
+
+  const { error } = await ctx.supabase
+    .from("participants")
+    .update(photo.value ? { ...r.value, photo_path: photo.value } : r.value)
+    .eq("id", id);
   if (error) return { error: dbError(error) };
+
+  // Ekstensi foto berubah (mis. png -> webp): buang berkas lama.
+  if (photo.value && cur.photo_path && cur.photo_path !== photo.value)
+    await removePhoto(ctx.supabase, cur.photo_path);
 
   revalidatePath("/desa", "layout");
   return { ok: true, message: "Perubahan disimpan." };
@@ -96,9 +134,14 @@ export async function deleteParticipant(fd: FormData): Promise<ActionState> {
   if ((count ?? 0) > 0)
     return { error: "Peserta masih terdaftar di lomba. Hapus pendaftarannya terlebih dahulu." };
 
-  const { data, error } = await ctx.supabase.from("participants").delete().eq("id", id).select("id");
+  const { data, error } = await ctx.supabase
+    .from("participants")
+    .delete()
+    .eq("id", id)
+    .select("id,photo_path");
   if (error) return { error: dbError(error) };
   if (!data?.length) return { error: "Peserta tidak ditemukan." };
+  if (data[0].photo_path) await removePhoto(ctx.supabase, data[0].photo_path);
 
   revalidatePath("/desa", "layout");
   return { ok: true };

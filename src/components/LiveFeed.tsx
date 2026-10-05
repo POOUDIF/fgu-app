@@ -17,28 +17,38 @@ export interface Submission {
 }
 
 const key = (s: Submission) => `${s.entry_id}|${s.judge_id}`;
+const PAGE_SIZE = 10;
 
-export function LiveFeed({ initial }: { initial: Submission[] }) {
+export function LiveFeed({ initial, initialTotal }: { initial: Submission[]; initialTotal: number }) {
   const [rows, setRows] = useState<Submission[]>(initial);
+  const [total, setTotal] = useState(initialTotal);
+  const [page, setPage] = useState(1);
+  const pageRef = useRef(1);
+  const [loading, setLoading] = useState(false);
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<"connecting" | "live" | "offline">("connecting");
   const known = useRef(new Set(initial.map(key)));
+
+  // Halaman aktif dimuat ulang saat berubah halaman atau ada nilai baru (urut terbaru dulu).
+  const loadRef = useRef<(p: number) => Promise<void>>(async () => {});
 
   useEffect(() => {
     const supabase = createClient();
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    async function reload() {
-      const { data } = await supabase
+    async function reload(p: number) {
+      const from = (p - 1) * PAGE_SIZE;
+      const { data, count } = await supabase
         .from("live_submissions")
-        .select("*")
+        .select("*", { count: "exact" })
         .order("submitted_at", { ascending: false })
-        .limit(40);
+        .range(from, from + PAGE_SIZE - 1);
       if (!data) return;
       const list = data as Submission[];
       const added = list.filter((r) => !known.current.has(key(r))).map(key);
       list.forEach((r) => known.current.add(key(r)));
       setRows(list);
+      if (count !== null) setTotal(count);
       if (added.length) {
         setFresh(new Set(added));
         setTimeout(() => setFresh(new Set()), 2500);
@@ -50,17 +60,30 @@ export function LiveFeed({ initial }: { initial: Submission[] }) {
       .channel("live-scores")
       .on("postgres_changes", { event: "*", schema: "public", table: "scores" }, () => {
         clearTimeout(timer);
-        timer = setTimeout(reload, 500);
+        timer = setTimeout(() => reload(pageRef.current), 500);
       })
       .subscribe((s) => {
         setStatus(s === "SUBSCRIBED" ? "live" : s === "CLOSED" || s === "CHANNEL_ERROR" ? "offline" : "connecting");
       });
 
+    loadRef.current = reload;
     return () => {
       clearTimeout(timer);
       supabase.removeChannel(channel);
     };
   }, []);
+
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  async function go(p: number) {
+    const next = Math.min(Math.max(1, p), pages);
+    if (next === page || loading) return;
+    pageRef.current = next;
+    setPage(next);
+    setLoading(true);
+    await loadRef.current(next);
+    setLoading(false);
+  }
 
   return (
     <div>
@@ -81,9 +104,12 @@ export function LiveFeed({ initial }: { initial: Submission[] }) {
         <p className="muted">Belum ada penilaian masuk.</p>
       ) : (
         <div className="feed">
-          {rows.map((r) => (
+          {rows.map((r, i) => (
             <div key={key(r)} className={`feeditem ${fresh.has(key(r)) ? "new" : ""}`}>
-              <div>
+              <span className="rank" style={{ marginRight: 12 }}>
+                {(page - 1) * PAGE_SIZE + i + 1}
+              </span>
+              <div style={{ flex: 1 }}>
                 <b>{r.competition_name}</b>
                 <div className="small">
                   {r.village_name} · {r.entry_label ?? "—"}
@@ -103,6 +129,21 @@ export function LiveFeed({ initial }: { initial: Submission[] }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {total > PAGE_SIZE && (
+        <div className="row between" style={{ marginTop: 12, alignItems: "center" }}>
+          <span className="muted small">
+            Halaman {page} dari {pages} · {total} penilaian
+          </span>
+          <div className="row">
+            <button type="button" className="btn white sm" disabled={page <= 1 || loading} onClick={() => go(page - 1)}>
+              ← Sebelumnya
+            </button>
+            <button type="button" className="btn white sm" disabled={page >= pages || loading} onClick={() => go(page + 1)}>
+              Berikutnya →
+            </button>
+          </div>
         </div>
       )}
     </div>

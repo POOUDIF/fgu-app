@@ -19,13 +19,9 @@ export async function Nav() {
         </Link>
         <nav className="navlinks">
           <Link href="/">Beranda</Link>
-          <Link href="/#tentang">Tentang</Link>
           <Link href="/#juknis">Ketentuan</Link>
           <Link href="/#lomba">Lomba</Link>
-          <Link href="/#kontingen">Desa</Link>
-          <Link href="/#jadwal">Jadwal</Link>
-          <Link href="/#pengumpulan">Kumpulkan Video</Link>
-          <Link href="/#pengumuman">Pengumuman</Link>
+          <Link href="/#pengumpulan">Kumpulkan Karya</Link>
           {profile && <Link href={homeFor(profile.role)}>Dashboard</Link>}
         </nav>
         {/* Di luar .navlinks agar dropdown tidak terpotong oleh overflow area menu */}

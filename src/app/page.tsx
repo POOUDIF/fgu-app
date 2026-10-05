@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtScore, registrationStatus } from "@/lib/utils";
 import { CompIcon } from "@/lib/compIcon";
-import type { Competition, EventRow, Level, Slot, Village } from "@/lib/types";
+import type { Competition, EventRow, Slot, Village } from "@/lib/types";
 
 interface Winner {
   competition_id: string;
@@ -63,14 +63,7 @@ const FLOW: [string, string][] = [
 
 const SUBMIT_STEPS = ["Pilih lomba", "Isi nama peserta", "Pilih desa", "Tempel link Drive"];
 
-const LEVEL_ORDER: Level[] = ["PAUD", "TK", "SD", "SMP", "SMA", "PGM"];
-const LEVEL_LABEL: Record<Level, string> = { PAUD: "PAUD", TK: "TK", SD: "SD", SMP: "SMP", SMA: "SMA/K", PGM: "Remaja PGM" };
 
-function listID(items: string[]) {
-  if (items.length < 2) return items.join("");
-  return `${items.slice(0, -1).join(", ")}, dan ${items[items.length - 1]}`;
-}
-const plainName = (n: string) => n.replace(/^lomba\s+/i, "").toLowerCase();
 
 export default async function Home() {
   const supabase = await createClient();
@@ -93,19 +86,6 @@ export default async function Home() {
   const winners = (winRes.data ?? []) as Winner[];
   const reg = registrationStatus(ev);
   const title = ev?.name ?? "Festival Generasi Unggul 3.0";
-  const levels = new Set(comps.flatMap((c) => c.levels ?? []));
-  const lv = LEVEL_ORDER.filter((l) => levels.has(l)).map((l) => LEVEL_LABEL[l]);
-  const levelText = lv.length > 1 ? `${lv.slice(0, -1).join(", ")} hingga ${lv[lv.length - 1]}` : lv[0] ?? "";
-  const regText =
-    ev?.registration_opens_at && ev?.registration_closes_at
-      ? `${fmtDate(ev.registration_opens_at)} – ${fmtDate(ev.registration_closes_at)}`
-      : "Tanggal akan ditentukan";
-  const schedule: [string, string][] = [
-    ["Pendaftaran", regText],
-    ["Pre-Event", "Online • sesuai ketentuan lomba"],
-    ["Technical Meeting", "Urutan tampil ditentukan panitia"],
-    ["Hari H", ev?.event_date ? fmtDate(ev.event_date) : "Tanggal akan ditentukan"],
-  ];
   const onlineCount = comps.filter((c) => c.submission_mode === "online").length;
   const weekday = ev?.event_date
     ? new Date(ev.event_date).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long" })
@@ -158,7 +138,7 @@ export default async function Home() {
                   <span>Desa</span>
                 </div>
                 <div>
-                  <b>{levels.size}</b>
+                  <b>{new Set(comps.flatMap((c) => c.levels ?? [])).size}</b>
                   <span>Kelompok usia</span>
                 </div>
                 <div>
@@ -196,41 +176,6 @@ export default async function Home() {
       </section>
 
       <div className="container page">
-        <section id="tentang" className="about" style={{ scrollMarginTop: 90 }}>
-          <span className="eyebrow">Tentang FGU 3.0</span>
-          <h2 className="about-title">Festival untuk generus segala usia.</h2>
-          <p className="about-text">
-            {content.about ??
-              "FGU (Festival Generasi Unggulan) 3.0 merupakan rangkaian kegiatan kompetisi dan pembinaan generasi muda di wilayah Bekasi Barat."}{" "}
-            Platform ini digunakan untuk pendaftaran peserta, pengumpulan karya, penilaian juri, sampai
-            pengumuman pemenang.
-          </p>
-          <div className="hero-info">
-            <div className="hero-card">
-              <span className="ico">🎯</span>
-              <h3>{villages.length} Desa</h3>
-              <p>{listID(villages.map((v) => v.name))}.</p>
-            </div>
-            <div className="hero-card">
-              <span className="ico">👧</span>
-              <h3>Beragam Usia</h3>
-              <p>
-                {levelText
-                  ? `${levelText} sesuai kategori tiap lomba.`
-                  : "Dari anak usia dini hingga remaja sesuai kategori tiap lomba."}
-              </p>
-            </div>
-            <div className="hero-card">
-              <span className="ico">🏅</span>
-              <h3>{comps.length} Cabang Lomba</h3>
-              <p>
-                {comps.length > 1
-                  ? `Dari ${plainName(comps[0].name)} hingga ${plainName(comps[comps.length - 1].name)}, seluruh teknis diringkas di halaman ini.`
-                  : "Seluruh teknis diringkas di halaman ini."}
-              </p>
-            </div>
-          </div>
-        </section>
 
         <section id="juknis" className="about" style={{ scrollMarginTop: 90 }}>
           <span className="eyebrow">Juklak &amp; Juknis • Ringkas</span>
@@ -304,22 +249,6 @@ export default async function Home() {
           </div>
         </section>
 
-        <section id="kontingen" className="about" style={{ scrollMarginTop: 90 }}>
-          <span className="eyebrow">Kontingen</span>
-          <h2 className="about-title">{villages.length} Desa se-Daerah Bekasi Barat</h2>
-          <p className="about-text">Desa-desa yang berpartisipasi dalam FGU 3.0.</p>
-          <div className="hero-info">
-            {villages.map((v, i) => (
-              <div key={v.id} className="hero-card village-card">
-                <span className="num">{String(i + 1).padStart(2, "0")}</span>
-                <div>
-                  <b>{v.name}</b>
-                  <span>Kontingen FGU 3.0</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section id="alur" className="about" style={{ scrollMarginTop: 90 }}>
           <span className="eyebrow">Alur</span>
@@ -335,38 +264,11 @@ export default async function Home() {
           </div>
         </section>
 
-        <section id="jadwal" className="about" style={{ scrollMarginTop: 90 }}>
-          <span className="eyebrow">Waktu &amp; Tempat</span>
-          <h2 className="about-title">Catat jadwal utama.</h2>
-          <div className="schedule-grid">
-            <div className="rules-main schedule-main">
-              <h3>
-                {weekday && ev?.event_date ? `${weekday}, ${fmtDate(ev.event_date)}` : "Jadwal akan diumumkan"}
-              </h3>
-              <p>
-                07.00 WIB – selesai
-                <br />
-                <b>{ev?.venue ?? "Tempat akan diumumkan"}</b>
-              </p>
-              <p>
-                Tema acara: <b>{ev?.theme ?? "akan diumumkan menyusul"}.</b>
-              </p>
-            </div>
-            <div className="schedule-list">
-              {schedule.map(([label, value]) => (
-                <div key={label} className="schedule-row">
-                  <b>{label}</b>
-                  <span>{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
         {onlineCount > 0 && (
           <section id="pengumpulan" className="about" style={{ scrollMarginTop: 90 }}>
-            <span className="eyebrow">Pengumpulan video</span>
-            <h2 className="about-title">Kumpulkan Video Lomba</h2>
+            <span className="eyebrow">Pengumpulan Karya</span>
+            <h2 className="about-title">Kumpulkan Karya Lomba</h2>
             <p className="about-text">
               Fitur ini hanya tersedia untuk lomba yang diatur panitia dengan metode pengumpulan{" "}
               <b>Bebas</b>. Pilih lomba, isi nama dan desa, lalu kirim link Google Drive.
@@ -379,7 +281,7 @@ export default async function Home() {
                   lomba yang bersangkutan.
                 </p>
                 <Link href="/login" className="btn white lg" style={{ color: "var(--blue2)" }}>
-                  Kumpulkan Video Sekarang
+                  Kumpulkan Karya Sekarang
                 </Link>
               </div>
               <div className="hero-card submit-steps">
@@ -397,16 +299,6 @@ export default async function Home() {
           </section>
         )}
 
-        <section id="pengumuman" className="about" style={{ scrollMarginTop: 90 }}>
-          <span className="eyebrow">Pengumuman</span>
-          <h2 className="about-title">Info resmi panitia</h2>
-          <div className="hero-card announce-card">
-            <p>
-              {content.announcement ??
-                "Belum ada pengumuman. Informasi resmi dari panitia akan tampil di sini."}
-            </p>
-          </div>
-        </section>
 
         <section id="pemenang" style={{ marginTop: 40, scrollMarginTop: 90 }}>
           <h2>Pemenang</h2>

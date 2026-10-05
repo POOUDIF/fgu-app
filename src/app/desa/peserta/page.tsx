@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { createParticipant, deleteParticipant } from "@/app/actions/desa";
 import { ParticipantForm } from "@/components/ParticipantForm";
 import { DeleteButton } from "@/components/DeleteButton";
+import { signedPhotoUrls } from "@/lib/photoUrl";
 import { GENDER_LABEL } from "@/lib/utils";
 import type { Participant } from "@/lib/types";
 
@@ -11,12 +12,14 @@ type Row = Participant & {
 };
 
 export default async function PesertaPage() {
-  const { supabase } = await requireRole("village_admin");
+  const { supabase, profile } = await requireRole("village_admin");
   const { data } = await supabase
     .from("participants")
     .select("*, entry_members(entry:entries(competition:competitions(name)))")
     .order("full_name");
   const rows = (data ?? []) as Row[];
+  const THUMB = 40;
+  const photos = await signedPhotoUrls(supabase, rows.map((p) => p.photo_path), THUMB);
 
   return (
     <div className="stack">
@@ -26,7 +29,12 @@ export default async function PesertaPage() {
           Data peserta dipakai ulang saat mendaftarkan lomba. Satu peserta hanya boleh ikut satu
           lomba.
         </p>
-        <ParticipantForm action={createParticipant} submitLabel="Tambah peserta" resetOnSuccess />
+        <ParticipantForm
+          action={createParticipant}
+          villageId={profile.village_id!}
+          submitLabel="Tambah peserta"
+          resetOnSuccess
+        />
       </div>
 
       <div className="card">
@@ -38,6 +46,7 @@ export default async function PesertaPage() {
             <table>
               <thead>
                 <tr>
+                  <th>Foto</th>
                   <th>Nama</th>
                   <th>L/P</th>
                   <th>Jenjang</th>
@@ -53,6 +62,22 @@ export default async function PesertaPage() {
                     .filter(Boolean) as string[];
                   return (
                     <tr key={p.id}>
+                      <td>
+                        {p.photo_path && photos[p.photo_path] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photos[p.photo_path]}
+                            alt={`Foto ${p.full_name}`}
+                            loading="lazy"
+                            decoding="async"
+                            width={THUMB}
+                            height={THUMB}
+                            style={{ width: THUMB, height: THUMB, objectFit: "cover", borderRadius: 8 }}
+                          />
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
                       <td>
                         <b>{p.full_name}</b>
                       </td>

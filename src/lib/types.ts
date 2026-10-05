@@ -71,6 +71,7 @@ export interface Participant {
   education_level: Level;
   grade: number | null;
   age: number;
+  photo_path: string | null;
 }
 
 export interface EventRow {

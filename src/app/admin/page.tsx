@@ -22,7 +22,7 @@ export default async function AdminLive() {
       .from("live_submissions")
       .select("*")
       .order("submitted_at", { ascending: false })
-      .limit(40),
+      .range(0, 9),
   ]);
 
   const entries = entRes.data ?? [];
@@ -55,10 +55,10 @@ export default async function AdminLive() {
         </div>
       </div>
 
-      <div className="grid g2" style={{ alignItems: "start" }}>
+      <div className="stack">
         <div className="card">
           <h2>Penilaian masuk (live)</h2>
-          <LiveFeed initial={(feedRes.data ?? []) as Submission[]} />
+          <LiveFeed initial={(feedRes.data ?? []) as Submission[]} initialTotal={subRes.count ?? 0} />
         </div>
 
         <div className="card">
