@@ -67,6 +67,7 @@ export interface Participant {
   id: string;
   village_id: string;
   full_name: string;
+  parent_name: string | null;
   gender: Gender;
   education_level: Level;
   grade: number | null;

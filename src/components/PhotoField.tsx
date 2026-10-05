@@ -10,10 +10,15 @@ import { fmtBytes, PhotoError, processPhoto, type ProcessedPhoto } from "@/lib/p
  */
 export function PhotoField({
   initialUrl,
+  required,
+  error: externalError,
   onChange,
   onBusyChange,
 }: {
   initialUrl?: string | null;
+  required?: boolean;
+  /** Pesan validasi dari form induk (mis. "Foto wajib diunggah"). */
+  error?: string;
   onChange: (photo: ProcessedPhoto | null) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
@@ -69,10 +74,14 @@ export function PhotoField({
   }
 
   const shownUrl = preview?.url ?? initialUrl ?? null;
+  const message = error ?? externalError ?? null;
 
   return (
     <div>
-      <label htmlFor="photo">Foto peserta</label>
+      <label htmlFor="photo">
+        Foto peserta
+        {required && <span className="req" aria-hidden="true"> *</span>}
+      </label>
       <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
         {shownUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -88,9 +97,13 @@ export function PhotoField({
             ref={inputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            required={required}
+            aria-required={required}
+            aria-invalid={!!message}
+            aria-describedby={message ? "photo-hint photo-error" : "photo-hint"}
             onChange={(e) => pick(e.target.files?.[0])}
           />
-          <p className="muted" style={{ margin: "6px 0 0", fontSize: ".85rem" }}>
+          <p id="photo-hint" className="muted" style={{ margin: "6px 0 0", fontSize: ".85rem" }}>
             Gunakan foto wajah yang jelas, menghadap kamera, latar sederhana (dipakai untuk video
             pengumuman juara). JPG/PNG/WebP, maks 5 MB.
           </p>
@@ -105,7 +118,11 @@ export function PhotoField({
               )}
             </p>
           )}
-          {error && <div className="alert err">{error}</div>}
+          {message && (
+            <p id="photo-error" className="field-err" role="alert">
+              {message}
+            </p>
+          )}
         </div>
       </div>
     </div>

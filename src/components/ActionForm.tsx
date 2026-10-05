@@ -32,12 +32,14 @@ export function ActionForm({
   className,
   resetOnSuccess = false,
   confirm,
+  noValidate,
 }: {
   action: (fd: FormData) => Promise<ActionState | void>;
   children: React.ReactNode;
   className?: string;
   resetOnSuccess?: boolean;
   confirm?: string;
+  noValidate?: boolean;
 }) {
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
@@ -47,6 +49,7 @@ export function ActionForm({
     <form
       ref={ref}
       className={className}
+      noValidate={noValidate}
       onSubmit={(e) => {
         e.preventDefault();
         if (confirm && !window.confirm(confirm)) return;

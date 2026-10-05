@@ -188,6 +188,12 @@ textarea { min-height: 90px; resize: vertical; }
 .check input { width: auto; }
 .checks { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 
+.req { color: #b52f25; text-decoration: none; font-weight: 800; }
+.req-note { font-size: .85rem; color: var(--muted); margin: 0 0 10px; }
+.field-err { color: #b52f25; font-size: .84rem; font-weight: 700; margin: 4px 0 0; }
+.field-hint { color: var(--muted); font-size: .84rem; margin: 4px 0 0; }
+input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #b52f25; }
+
 .alert { padding: 10px 14px; border-radius: 10px; font-weight: 600; margin: 10px 0; }
 .alert.err { background: #fff0ef; color: #b52f25; border: 1px solid #f5c8c4; }
 .alert.ok { background: #e7f8ee; color: #138a42; border: 1px solid #bfe9cf; }

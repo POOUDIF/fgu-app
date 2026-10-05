@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { getCtx } from "@/lib/auth";
-import { dbError, LEVELS } from "@/lib/utils";
+import { dbError } from "@/lib/utils";
+import { firstError, usesGrade, validateParticipant } from "@/lib/participant";
 import { PHOTO_BUCKET } from "@/lib/photo";
 import type { ActionState, Level } from "@/lib/types";
 
@@ -14,24 +15,30 @@ async function villageCtx() {
 
 const NO_ACCESS: ActionState = { error: "Akun Anda bukan Admin Desa." };
 
-function readParticipant(fd: FormData) {
-  const full_name = String(fd.get("full_name") ?? "").trim();
-  const gender = String(fd.get("gender") ?? "");
-  const education_level = String(fd.get("education_level") ?? "") as Level;
-  const age = Number(fd.get("age"));
-  const gradeRaw = String(fd.get("grade") ?? "").trim();
-  const grade = gradeRaw === "" ? null : Number(gradeRaw);
+function readParticipant(fd: FormData, hasPhoto: boolean) {
+  const raw = {
+    full_name: String(fd.get("full_name") ?? ""),
+    parent_name: String(fd.get("parent_name") ?? ""),
+    gender: String(fd.get("gender") ?? ""),
+    education_level: String(fd.get("education_level") ?? ""),
+    grade: String(fd.get("grade") ?? ""),
+    age: String(fd.get("age") ?? ""),
+  };
+  const err = firstError(validateParticipant({ ...raw, hasPhoto }));
+  if (err) return { error: err.message };
 
-  if (!full_name) return { error: "Nama wajib diisi." };
-  if (gender !== "L" && gender !== "P") return { error: "Pilih jenis kelamin." };
-  if (!LEVELS.includes(education_level)) return { error: "Pilih jenjang." };
-  if (!Number.isInteger(age) || age < 1 || age > 100) return { error: "Usia harus 1–100 tahun." };
-  if (grade !== null && (!Number.isInteger(grade) || grade < 1 || grade > 12))
-    return { error: "Kelas harus 1–12." };
-  if (education_level === "SD" && grade === null)
-    return { error: "Kelas wajib diisi untuk peserta SD." };
-
-  return { value: { full_name, gender, education_level, age, grade } };
+  const education_level = raw.education_level as Level;
+  const grade = usesGrade(education_level) && raw.grade.trim() !== "" ? Number(raw.grade) : null;
+  return {
+    value: {
+      full_name: raw.full_name.trim(),
+      parent_name: raw.parent_name.trim(),
+      gender: raw.gender as "L" | "P",
+      education_level,
+      age: Number(raw.age),
+      grade,
+    },
+  };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,14 +60,15 @@ async function removePhoto(supabase: Awaited<ReturnType<typeof getCtx>>["supabas
 export async function createParticipant(fd: FormData): Promise<ActionState> {
   const ctx = await villageCtx();
   if (!ctx) return NO_ACCESS;
-  const r = readParticipant(fd);
-  if ("error" in r) return { error: r.error };
 
   // id dibuat di klien agar foto bisa diunggah ke path-nya sebelum baris dibuat.
   const id = String(fd.get("id") ?? "");
   if (id && !UUID.test(id)) return { error: "ID peserta tidak valid." };
   const photo = id ? readPhotoPath(fd, ctx.villageId, id) : { value: null };
   if ("error" in photo) return { error: photo.error };
+
+  const r = readParticipant(fd, photo.value !== null);
+  if ("error" in r) return { error: r.error };
 
   const { error } = await ctx.supabase
     .from("participants")
@@ -80,8 +88,6 @@ export async function updateParticipant(fd: FormData): Promise<ActionState> {
   const ctx = await villageCtx();
   if (!ctx) return NO_ACCESS;
   const id = String(fd.get("id") ?? "");
-  const r = readParticipant(fd);
-  if ("error" in r) return { error: r.error };
 
   const { data: cur } = await ctx.supabase
     .from("participants")
@@ -89,6 +95,13 @@ export async function updateParticipant(fd: FormData): Promise<ActionState> {
     .eq("id", id)
     .maybeSingle();
   if (!cur) return { error: "Peserta tidak ditemukan." };
+
+  const photo = readPhotoPath(fd, ctx.villageId, id);
+  if ("error" in photo) return { error: photo.error };
+
+  // Saat ubah, foto boleh kosong selama peserta sudah punya foto.
+  const r = readParticipant(fd, photo.value !== null || !!cur.photo_path);
+  if ("error" in r) return { error: r.error };
 
   const { count } = await ctx.supabase
     .from("entry_members")
@@ -104,9 +117,6 @@ export async function updateParticipant(fd: FormData): Promise<ActionState> {
       error:
         "Peserta sudah terdaftar di lomba. Lepaskan dari pendaftaran dulu bila ingin mengubah jenis kelamin, jenjang, usia, atau kelas.",
     };
-
-  const photo = readPhotoPath(fd, ctx.villageId, id);
-  if ("error" in photo) return { error: photo.error };
 
   const { error } = await ctx.supabase
     .from("participants")
