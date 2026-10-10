@@ -46,6 +46,7 @@ export function ParticipantForm({
   submitLabel,
   resetOnSuccess,
   lombaOptions,
+  currentLomba,
 }: {
   action: (fd: FormData) => Promise<ActionState>;
   initial?: Participant;
@@ -55,6 +56,8 @@ export function ParticipantForm({
   resetOnSuccess?: boolean;
   /** Hanya saat menambah peserta baru: lomba yang bisa dipilih (disaring sesuai kelas). */
   lombaOptions?: LombaOption[];
+  /** Hanya saat mengubah: lomba tempat peserta terdaftar saat ini (bisa diganti/dilepas). */
+  currentLomba?: { id: string; name: string } | null;
 }) {
   const [v, setV] = useState(
     initial
@@ -63,7 +66,7 @@ export function ParticipantForm({
           parent_name: initial.parent_name ?? "",
           gender: initial.gender as string,
           kelas: kelasValue(initial.education_level, initial.grade),
-          lomba_id: "",
+          lomba_id: currentLomba?.id ?? "",
         }
       : BLANK,
   );
@@ -85,6 +88,7 @@ export function ParticipantForm({
   const kelas = parseKelas(v.kelas);
   const lombaChoices = (lombaOptions ?? []).flatMap((o) => {
     if (!kelas || (v.gender !== "L" && v.gender !== "P")) return [];
+    if (o.id === currentLomba?.id) return []; // lomba saat ini ditampilkan terpisah
     const plan = planAttach(o, { gender: v.gender as Gender, education_level: kelas.level, grade: kelas.grade });
     if (plan.kind === "none" && !plan.eligible) return [];
     return [{ o, full: plan.kind === "none", reason: plan.kind === "none" ? plan.reason : "" }];
@@ -96,7 +100,7 @@ export function ParticipantForm({
   const resetLombaIfInvalid = (next: { gender: string; kelas: string }) =>
     setV((cur) => {
       const k = parseKelas(next.kelas);
-      if (!cur.lomba_id) return cur;
+      if (initial || !cur.lomba_id) return cur; // saat mengubah, pilihan lomba tidak dikosongkan otomatis
       const o = (lombaOptions ?? []).find((x) => x.id === cur.lomba_id);
       const ok =
         !!o &&
@@ -252,27 +256,35 @@ export function ParticipantForm({
           <FieldError id="kelas-error" message={errors.kelas} />
         </div>
       </div>
-      {needLomba && (
+      {(needLomba || !!lombaOptions) && (
         <div style={{ marginTop: 14 }}>
-          <Label htmlFor="lomba_id" required>
+          <Label htmlFor="lomba_id" required={needLomba}>
             Lomba yang diikuti
           </Label>
           <select
             {...props("lomba_id")}
             name="lomba_id"
-            required
-            aria-required="true"
+            required={needLomba}
+            aria-required={needLomba}
             value={v.lomba_id}
-            disabled={lombaChoices.length === 0}
+            disabled={lombaChoices.length === 0 && !currentLomba}
             onChange={set("lomba_id")}
           >
-            <option value="">
-              {!kelas || !v.gender
-                ? "Pilih jenis kelamin dan kelas terlebih dahulu"
-                : lombaChoices.length === 0
-                  ? "Belum ada lomba untuk kelas ini"
-                  : "Pilih lomba…"}
-            </option>
+            {/* Peserta yang sudah terdaftar tidak bisa dilepas per orang; hanya bisa dipindah ke lomba lain. */}
+            {!(initial && currentLomba) && (
+              <option value="">
+                {initial
+                  ? "Belum terdaftar — pilih bila ingin mendaftarkan"
+                  : !kelas || !v.gender
+                    ? "Pilih jenis kelamin dan kelas terlebih dahulu"
+                    : lombaChoices.length === 0
+                      ? "Belum ada lomba untuk kelas ini"
+                      : "Pilih lomba…"}
+              </option>
+            )}
+            {currentLomba && (
+              <option value={currentLomba.id}>{currentLomba.name} (saat ini)</option>
+            )}
             {[...new Set(lombaChoices.map(({ o }) => o.cluster ?? "Lomba"))].map((cluster) => (
               <optgroup key={cluster} label={cluster}>
                 {lombaChoices
@@ -291,9 +303,14 @@ export function ParticipantForm({
             ))}
           </select>
           {chosenLomba?.composition_note && <p className="field-hint">📝 {chosenLomba.composition_note}</p>}
+          {initial && (
+            <p className="field-hint">
+              Mengganti lomba akan memindahkan peserta dari lomba lama ke lomba yang dipilih.
+            </p>
+          )}
           <p className="field-hint">
             Daftar lomba menyesuaikan kelas dan jenis kelamin peserta. Dakwah Online, Mewarnai, Karya Tulis, dan
-            Video Campaign didaftarkan dari <b>Ringkasan</b> (tombol Kelola pada lomba itu).
+            Video Campaign didaftarkan lewat section <b>Pengumpulan Karya</b> di beranda.
           </p>
           <FieldError id="lomba_id-error" message={errors.lomba_id} />
         </div>

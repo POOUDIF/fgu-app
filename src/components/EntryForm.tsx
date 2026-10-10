@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ActionForm, SubmitButton } from "./ActionForm";
 import { createEntry } from "@/app/actions/desa";
 import { displayName, kelasLabel } from "@/lib/participant";
+import { teamBounds, teamSizeError } from "@/lib/lomba";
 import { GENDER_LABEL } from "@/lib/utils";
 import type { ActionState, Gender, Level } from "@/lib/types";
 
@@ -30,6 +31,7 @@ export function EntryForm({
   slots,
   participants,
   teamSize,
+  teamMinSize,
   isTeam,
   online,
   mixedGender,
@@ -38,7 +40,8 @@ export function EntryForm({
   competitionId: string;
   slots: SlotOpt[]; // hanya slot yang masih kosong; kosong bila lomba tidak memakai slot
   participants: PartOpt[]; // sudah difilter sesuai syarat lomba (jenjang, kelas SD, gender)
-  teamSize: number | null;
+  teamSize: number | null; // maksimal anggota
+  teamMinSize: number | null; // minimal anggota (null = tepat teamSize)
   isTeam: boolean;
   online: boolean;
   /** Regu wajib 1 putra + 1 putri. */
@@ -52,6 +55,7 @@ export function EntryForm({
   // Lomba perorangan: satu pendaftaran = satu peserta (pilih lewat radio).
   const single = teamSize === 1 || (!isTeam && teamSize === null);
   const max = single ? 1 : teamSize;
+  const { min } = teamBounds({ team_size: teamSize, team_min_size: teamMinSize });
 
   const pickedGenders = participants.filter((p) => picked.includes(p.id)).map((p) => p.gender);
 
@@ -67,6 +71,10 @@ export function EntryForm({
     setPicked((cur) => (single ? (on ? [id] : []) : on ? [...cur, id] : cur.filter((x) => x !== id)));
 
   async function submit(fd: FormData): Promise<ActionState> {
+    if (!single) {
+      const err = teamSizeError({ team_size: teamSize, team_min_size: teamMinSize }, picked.length);
+      if (err) return { error: err };
+    }
     const res = await createEntry(fd);
     if (res.ok) setPicked([]);
     return res;
@@ -116,6 +124,11 @@ export function EntryForm({
               ? `Pilih anggota (${picked.length}/${max})`
               : `Pilih anggota (${picked.length} dipilih)`}
         </label>
+        {!single && teamMinSize !== null && min !== null && (
+          <p className="field-hint" style={{ marginTop: 0 }}>
+            Minimal {min} anggota{max !== null && max !== min ? `, maksimal ${max}` : ""}.
+          </p>
+        )}
         {mixedGender && (
           <p className="field-hint" style={{ marginTop: 0 }}>
             Wajib 1 putra dan 1 putri

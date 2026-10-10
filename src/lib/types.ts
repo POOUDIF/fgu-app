@@ -30,7 +30,10 @@ export interface Competition {
   max_age: number | null;
   allowed_genders: Gender[] | null;
   participation_type: "individual" | "team";
+  /** Maksimal anggota regu. */
   team_size: number | null;
+  /** Minimal anggota regu; null = harus tepat team_size. */
+  team_min_size?: number | null;
   /** Catatan aturan komposisi regu/peserta (diisi panitia di database). */
   composition_note: string | null;
   max_entries_per_village: number | null;

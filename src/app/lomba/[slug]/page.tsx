@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDateTime, fmtScore } from "@/lib/utils";
 import { CompIcon } from "@/lib/compIcon";
+import { teamRangeText } from "@/lib/lomba";
 import type { Competition, Criterion, Slot } from "@/lib/types";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -56,7 +57,7 @@ export default async function LombaPublik({ params }: { params: Promise<{ slug: 
           <li>
             <b>Jenis:</b>{" "}
             {c.participation_type === "team"
-              ? `Regu/tim${c.team_size ? ` (${c.team_size} anggota)` : ""}`
+              ? `Regu/tim${c.team_size ? ` (${teamRangeText(c)})` : ""}`
               : "Perorangan"}
             {c.composition_note ? ` — ${c.composition_note}` : ""}
           </li>

@@ -362,3 +362,19 @@ textarea { resize: vertical; }
 .lomba-cluster:first-of-type { margin-top: 20px; }
 .lomba-cluster-title { font-size: 1.25rem; font-weight: 900; color: var(--blue2); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
 .lomba-cluster-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* Kisi-kisi lomba (beranda) */
+.kisi { margin-top: 22px; }
+.kisi-title { font-size: 1.25rem; font-weight: 900; color: var(--blue2); margin: 0 0 12px; }
+.kisi-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+.kisi-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 4px 22px; }
+.kisi-card summary { list-style: none; cursor: pointer; padding: 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #0f1d2f; }
+.kisi-card summary::-webkit-details-marker { display: none; }
+.kisi-card summary::after { content: "＋"; font-weight: 900; color: var(--blue); flex-shrink: 0; }
+.kisi-card[open] summary::after { content: "－"; }
+.kisi-card summary b { display: block; font-size: 1.05rem; }
+.kisi-card summary small { color: var(--muted); font-weight: 700; }
+.kisi-body { padding: 0 0 18px; border-top: 1px solid var(--line); }
+.kisi-body p { color: var(--muted); margin: 12px 0 0; }
+.kisi-body h4 { margin: 16px 0 6px; font-size: .95rem; color: var(--blue2); }
+.kisi-body ol, .kisi-body ul { margin: 0; padding-left: 22px; line-height: 1.8; }

@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { StatusButton } from "@/components/AdminForms";
 import { displayName, kelasLabel } from "@/lib/participant";
+import { teamBounds } from "@/lib/lomba";
 import { GENDER_LABEL } from "@/lib/utils";
 import { ExportButton } from "@/components/ExportButton";
 import { CompIcon } from "@/lib/compIcon";
@@ -17,7 +18,7 @@ interface EntryRow {
   entry_type: "individual" | "team" | null;
   members_note: string | null;
   source: "village" | "public" | null;
-  competition: Pick<Competition, "id" | "name" | "team_size" | "submission_mode" | "registration_mode"> | null;
+  competition: Pick<Competition, "id" | "name" | "team_size" | "team_min_size" | "submission_mode" | "registration_mode"> | null;
   village: { id: string; name: string } | null;
   slot: { label: string } | null;
   members: { participant: Participant | null }[];
@@ -34,7 +35,7 @@ export default async function AdminPeserta({
   let q = supabase
     .from("entries")
     .select(
-      "id, status, disqualified_reason, team_name, submission_url, ig_username, parent_name, entry_type, members_note, source, competition:competitions(id,name,team_size,submission_mode,registration_mode), village:villages(id,name), slot:competition_slots(label), members:entry_members(participant:participants(*))",
+      "id, status, disqualified_reason, team_name, submission_url, ig_username, parent_name, entry_type, members_note, source, competition:competitions(id,name,team_size,team_min_size,submission_mode,registration_mode), village:villages(id,name), slot:competition_slots(label), members:entry_members(participant:participants(*))",
     );
   if (sp.lomba) q = q.eq("competition_id", sp.lomba);
   if (sp.desa) q = q.eq("village_id", sp.desa);
@@ -153,7 +154,7 @@ export default async function AdminPeserta({
               </thead>
               <tbody>
                 {entries.map((e) => {
-                  const need = e.competition?.registration_mode === "open" ? 0 : (e.competition?.team_size ?? 1);
+                  const need = e.competition?.registration_mode === "open" ? 0 : (teamBounds(e.competition ?? { team_size: null }).min ?? 1);
                   const incomplete = e.members.length < need;
                   return (
                     <tr key={e.id}>

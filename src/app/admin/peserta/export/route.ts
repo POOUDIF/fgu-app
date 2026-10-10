@@ -1,6 +1,7 @@
 import { addSheet, createWorkbook, type ExcelRow } from "@/lib/excel";
 import { authorizeExport, fetchAll, jsonError, UUID_RE, xlsxResponse } from "@/lib/exportGuard";
 import { displayName, kelasLabel } from "@/lib/participant";
+import { teamBounds } from "@/lib/lomba";
 import { GENDER_LABEL } from "@/lib/utils";
 import type { Gender } from "@/lib/types";
 
@@ -19,7 +20,7 @@ interface EntryRow {
   members_note: string | null;
   source: "village" | "public" | null;
   village_id: string;
-  competition: { name: string; team_size: number | null; registration_mode: string | null } | null;
+  competition: { name: string; team_size: number | null; team_min_size: number | null; registration_mode: string | null } | null;
   village: { name: string } | null;
   slot: { label: string } | null;
   members: {
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
         let q = supabase
           .from("entries")
           .select(
-            "id,status,team_name,submission_url,ig_username,parent_name,entry_type,members_note,source,village_id,competition:competitions(name,team_size,registration_mode),village:villages(name),slot:competition_slots(label),members:entry_members(participant:participants(id,full_name,display_name,gender,education_level,grade,age))",
+            "id,status,team_name,submission_url,ig_username,parent_name,entry_type,members_note,source,village_id,competition:competitions(name,team_size,team_min_size,registration_mode),village:villages(name),slot:competition_slots(label),members:entry_members(participant:participants(id,full_name,display_name,gender,education_level,grade,age))",
           );
         if (lomba) q = q.eq("competition_id", lomba);
         if (desa) q = q.eq("village_id", desa);
@@ -79,7 +80,7 @@ export async function GET(request: Request) {
     const compSet = new Map<string, Set<string>>();
 
     for (const e of entries) {
-      const need = e.competition?.registration_mode === "open" ? 0 : (e.competition?.team_size ?? 1);
+      const need = e.competition?.registration_mode === "open" ? 0 : (teamBounds(e.competition ?? { team_size: null }).min ?? 1);
       const members = e.members.map((m) => m.participant).filter((p) => p !== null);
       const base = {
         lomba: e.competition?.name,

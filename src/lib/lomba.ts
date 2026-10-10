@@ -51,6 +51,30 @@ export type AttachPlan =
   | { kind: "new"; slotId: string | null }
   | { kind: "none"; reason: string; eligible: boolean };
 
+/** Batas anggota regu: min (null = tepat max) dan max (team_size). */
+export function teamBounds(c: { team_size: number | null; team_min_size?: number | null }) {
+  const max = c.team_size;
+  const min = max === null ? null : Math.min(c.team_min_size ?? max, max);
+  return { min, max };
+}
+
+/** Pesan bila jumlah anggota di luar batas; null bila sesuai. */
+export function teamSizeError(c: { team_size: number | null; team_min_size?: number | null }, n: number) {
+  const { min, max } = teamBounds(c);
+  if (max === null || min === null) return null;
+  if (n >= min && n <= max) return null;
+  return min !== max
+    ? `Lomba ini membutuhkan minimal ${min} dan maksimal ${max} anggota (Anda memilih ${n}).`
+    : `Lomba ini membutuhkan tepat ${max} anggota (Anda memilih ${n}).`;
+}
+
+/** "tepat 10 anggota" / "minimal 5 dan maksimal 10 anggota" / "jumlah anggota bebas". */
+export function teamRangeText(c: { team_size: number | null; team_min_size?: number | null }) {
+  const { min, max } = teamBounds(c);
+  if (max === null || min === null) return "jumlah anggota bebas";
+  return min !== max ? `minimal ${min} dan maksimal ${max} anggota` : `tepat ${max} anggota`;
+}
+
 /** "terisi X dari Y" untuk desa yang login; null bila lomba tanpa kuota. */
 export function quotaText(o: Pick<LombaOption, "slots" | "entries" | "max_entries_per_village">) {
   if (o.slots.length > 0) return `terisi ${o.slots.filter((s) => s.taken).length} dari ${o.slots.length}`;

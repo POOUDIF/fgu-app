@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCtx } from "@/lib/auth";
 import { dbError } from "@/lib/utils";
 import { firstError, parseKelas, validateParticipant } from "@/lib/participant";
-import { planAttach } from "@/lib/lomba";
+import { planAttach, teamSizeError } from "@/lib/lomba";
 import { loadLombaOptions } from "@/lib/lombaOptions";
 import { PHOTO_BUCKET } from "@/lib/photo";
 import type { ActionState } from "@/lib/types";
@@ -57,6 +57,38 @@ async function removePhoto(supabase: Awaited<ReturnType<typeof getCtx>>["supabas
   await supabase.storage.from(PHOTO_BUCKET).remove([path]); // best-effort
 }
 
+type VillageCtx = NonNullable<Awaited<ReturnType<typeof villageCtx>>>;
+type Plan = Exclude<ReturnType<typeof planAttach>, { kind: "none" }>;
+
+/** Masukkan peserta ke lomba sesuai rencana (gabung ke regu atau buat pendaftaran baru). */
+async function attachParticipant(
+  ctx: VillageCtx,
+  participantId: string,
+  competitionId: string,
+  plan: Plan,
+): Promise<string | null> {
+  let entryId = plan.kind === "join" ? plan.entryId : "";
+  let createdEntry = false;
+  if (plan.kind === "new") {
+    const { data: entry, error } = await ctx.supabase
+      .from("entries")
+      .insert({ competition_id: competitionId, village_id: ctx.villageId, slot_id: plan.slotId })
+      .select("id")
+      .single();
+    if (error || !entry) return dbError(error);
+    entryId = entry.id;
+    createdEntry = true;
+  }
+  const { error } = await ctx.supabase
+    .from("entry_members")
+    .insert({ entry_id: entryId, participant_id: participantId });
+  if (error) {
+    if (createdEntry) await ctx.supabase.from("entries").delete().eq("id", entryId);
+    return dbError(error);
+  }
+  return null;
+}
+
 export async function createParticipant(fd: FormData): Promise<ActionState> {
   const ctx = await villageCtx();
   if (!ctx) return NO_ACCESS;
@@ -93,30 +125,11 @@ export async function createParticipant(fd: FormData): Promise<ActionState> {
     .single();
   if (error || !created) return { error: dbError(error) };
 
-  let entryId = plan.kind === "join" ? plan.entryId : "";
-  let createdEntry = false;
-  if (plan.kind === "new") {
-    const { data: entry, error: e1 } = await ctx.supabase
-      .from("entries")
-      .insert({ competition_id: lomba.id, village_id: ctx.villageId, slot_id: plan.slotId })
-      .select("id")
-      .single();
-    if (e1 || !entry) {
-      await ctx.supabase.from("participants").delete().eq("id", created.id);
-      return { error: dbError(e1) };
-    }
-    entryId = entry.id;
-    createdEntry = true;
-  }
-
-  const { error: e2 } = await ctx.supabase
-    .from("entry_members")
-    .insert({ entry_id: entryId, participant_id: created.id });
-  if (e2) {
-    // Batalkan semuanya agar tidak ada peserta/pendaftaran setengah jadi.
-    if (createdEntry) await ctx.supabase.from("entries").delete().eq("id", entryId);
+  const failed = await attachParticipant(ctx, created.id, lomba.id, plan);
+  if (failed) {
+    // Batalkan semuanya agar tidak ada peserta setengah jadi.
     await ctx.supabase.from("participants").delete().eq("id", created.id);
-    return { error: dbError(e2) };
+    return { error: failed };
   }
 
   revalidatePath("/desa", "layout");
@@ -130,7 +143,7 @@ export async function updateParticipant(fd: FormData): Promise<ActionState> {
 
   const { data: cur } = await ctx.supabase
     .from("participants")
-    .select("gender,education_level,grade,photo_path")
+    .select("full_name,parent_name,gender,education_level,grade,photo_path")
     .eq("id", id)
     .maybeSingle();
   if (!cur) return { error: "Peserta tidak ditemukan." };
@@ -142,32 +155,111 @@ export async function updateParticipant(fd: FormData): Promise<ActionState> {
   const r = readParticipant(fd, photo.value !== null || !!cur.photo_path, false);
   if ("error" in r) return { error: r.error };
 
-  const { count } = await ctx.supabase
+  // Lomba peserta saat ini (satu peserta hanya boleh di satu lomba).
+  const { data: memRow } = await ctx.supabase
     .from("entry_members")
-    .select("participant_id", { count: "exact", head: true })
-    .eq("participant_id", id);
+    .select("entry:entries(competition_id)")
+    .eq("participant_id", id)
+    .maybeSingle();
+  const currentComp =
+    (memRow as unknown as { entry: { competition_id: string } | null } | null)?.entry?.competition_id ?? "";
+  // Mengosongkan pilihan tidak melepas peserta dari lomba (tidak ada fitur lepas per peserta).
+  const targetComp = r.lombaId || currentComp;
+  const lombaChanged = targetComp !== currentComp;
+
   const changedRules =
     cur.gender !== r.value.gender ||
     cur.education_level !== r.value.education_level ||
     cur.grade !== r.value.grade;
-  if ((count ?? 0) > 0 && changedRules)
+  if (currentComp && !lombaChanged && changedRules)
     return {
       error:
-        "Peserta sudah terdaftar di lomba. Lepaskan dari pendaftaran dulu bila ingin mengubah jenis kelamin atau kelas.",
+        "Peserta sudah terdaftar di lomba. Pilih lomba lain bila ingin mengubah jenis kelamin atau kelas.",
     };
 
-  const { error } = await ctx.supabase
-    .from("participants")
-    .update(photo.value ? { ...r.value, photo_path: photo.value } : r.value)
-    .eq("id", id);
-  if (error) return { error: dbError(error) };
+  // Rencanakan tujuan SEBELUM menulis apa pun (syarat kelas/gender, kuota, slot).
+  let move: { id: string; name: string; slotId: string | null } | null = null;
+  if (lombaChanged) {
+    const options = await loadLombaOptions(ctx.supabase, ctx.villageId);
+    const lomba = options.find((o) => o.id === targetComp);
+    if (!lomba) return { error: "Lomba tidak ditemukan atau tidak tersedia untuk pendaftaran peserta." };
+    const plan = planAttach(lomba, {
+      gender: r.value.gender,
+      education_level: r.value.education_level,
+      grade: r.value.grade,
+    });
+    if (plan.kind === "none") return { error: plan.reason };
+    // p_slot_id hanya dikirim bila lomba tujuan memakai slot.
+    const slotId =
+      lomba.slots.length === 0
+        ? null
+        : plan.kind === "new"
+          ? plan.slotId
+          : (lomba.joinable.find((e) => e.id === plan.entryId)?.slot_id ?? null);
+    move = { id: lomba.id, name: lomba.name, slotId };
+  }
 
-  // Ekstensi foto berubah (mis. png -> webp): buang berkas lama.
-  if (photo.value && cur.photo_path && cur.photo_path !== photo.value)
-    await removePhoto(ctx.supabase, cur.photo_path);
+  const saveFields = () =>
+    ctx.supabase
+      .from("participants")
+      .update(photo.value ? { ...r.value, photo_path: photo.value } : r.value)
+      .eq("id", id);
+  const cleanupOldPhoto = async () => {
+    // Ekstensi foto berubah (mis. png -> webp): buang berkas lama.
+    if (photo.value && cur.photo_path && cur.photo_path !== photo.value)
+      await removePhoto(ctx.supabase, cur.photo_path);
+  };
+  const callMove = () =>
+    ctx.supabase.rpc("move_participant_entry", {
+      p_participant_id: id,
+      p_competition_id: move!.id,
+      p_slot_id: move!.slotId,
+    });
+
+  if (!move) {
+    const { error } = await saveFields();
+    if (error) return { error: dbError(error) };
+    await cleanupOldPhoto();
+    revalidatePath("/desa", "layout");
+    return { ok: true, message: "Perubahan disimpan." };
+  }
+
+  if (changedRules) {
+    // Syarat lomba dicek database berdasarkan kelas/gender tersimpan, jadi data peserta disimpan lebih dulu
+    // dan dikembalikan bila pemindahan lomba ditolak.
+    const { error } = await saveFields();
+    if (error) return { error: dbError(error) };
+    const { error: moveErr } = await callMove();
+    if (moveErr) {
+      await ctx.supabase
+        .from("participants")
+        .update({
+          full_name: cur.full_name,
+          parent_name: cur.parent_name,
+          gender: cur.gender,
+          education_level: cur.education_level,
+          grade: cur.grade,
+        })
+        .eq("id", id);
+      return { error: `${moveErr.message} (Perubahan data peserta dibatalkan.)` };
+    }
+    await cleanupOldPhoto();
+  } else {
+    // Pindahkan lomba dulu; data lain hanya disimpan bila pemindahan sukses.
+    const { error: moveErr } = await callMove();
+    if (moveErr) return { error: moveErr.message };
+    const { error } = await saveFields();
+    if (error) {
+      revalidatePath("/desa", "layout");
+      return {
+        error: `Peserta sudah dipindahkan ke ${move.name}, tetapi perubahan data lain gagal disimpan: ${dbError(error)}`,
+      };
+    }
+    await cleanupOldPhoto();
+  }
 
   revalidatePath("/desa", "layout");
-  return { ok: true, message: "Perubahan disimpan." };
+  return { ok: true, message: `Perubahan disimpan. Peserta kini terdaftar di ${move.name}.` };
 }
 
 export async function deleteParticipant(fd: FormData): Promise<ActionState> {
@@ -207,7 +299,7 @@ export async function createEntry(fd: FormData): Promise<ActionState> {
 
   const { data: comp } = await ctx.supabase
     .from("competitions")
-    .select("name,team_size,participation_type")
+    .select("name,team_size,team_min_size,participation_type")
     .eq("id", competition_id)
     .maybeSingle();
   if (!comp) return { error: "Lomba tidak ditemukan." };
@@ -215,10 +307,8 @@ export async function createEntry(fd: FormData): Promise<ActionState> {
   if (members.length === 0) return { error: "Pilih minimal 1 peserta." };
   if (comp.participation_type === "individual" && comp.team_size === null && members.length !== 1)
     return { error: "Lomba perorangan: satu pendaftaran hanya untuk satu peserta." };
-  if (comp.team_size !== null && members.length !== comp.team_size)
-    return {
-      error: `Lomba ini membutuhkan tepat ${comp.team_size} anggota (Anda memilih ${members.length}).`,
-    };
+  const sizeError = teamSizeError(comp, members.length);
+  if (sizeError) return { error: sizeError };
 
   const { data: entry, error: e1 } = await ctx.supabase
     .from("entries")

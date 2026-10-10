@@ -26,7 +26,7 @@ export default async function DesaLayout({ children }: { children: React.ReactNo
       title={`Kontingen ${village?.name ?? "—"}`}
       items={[
         { href: "/desa", label: "Ringkasan", icon: "home", exact: true },
-        { href: "/desa/peserta", label: "Peserta", icon: "user" },
+        { href: "/desa/peserta", label: "Pendaftaran Peserta", icon: "user" },
         { href: "/desa/hasil", label: "Hasil", icon: "trophy" },
       ]}
     >

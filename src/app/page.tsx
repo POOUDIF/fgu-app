@@ -3,6 +3,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtDateTime, fmtScore, registrationStatus } from "@/lib/utils";
 import { CompIcon, compIcon } from "@/lib/compIcon";
+import { teamBounds } from "@/lib/lomba";
+import { KISI_KISI } from "@/lib/kisiKisi";
 import { PublicRegistration } from "@/components/PublicRegistration";
 import type { OpenComp } from "@/lib/openEntry";
 import type { Competition, EventRow, Slot, Village } from "@/lib/types";
@@ -42,7 +44,10 @@ const OTHER_RULES = [
 
 function participantText(c: Competition & { slots: Slot[] }) {
   const g = c.slots.map((x) => x.gender);
-  if (c.participation_type === "team" && c.team_size) return `Regu ${c.team_size} orang`;
+  if (c.participation_type === "team" && c.team_size) {
+    const { min, max } = teamBounds(c);
+    return min !== null && min !== max ? `Regu ${min}–${max} orang` : `Regu ${max} orang`;
+  }
   if (c.slots.length === 2 && g.includes("L") && g.includes("P")) return "1 putra & 1 putri/desa";
   if (c.participation_type === "team") return "Grup";
   if (c.slots.length > 1) return `${c.slots.length} orang/desa`;
@@ -248,6 +253,40 @@ export default async function Home() {
               </a>
             </div>
           </div>
+
+          <div className="kisi">
+            <h3 className="kisi-title">Kisi-kisi Lomba</h3>
+            <div className="kisi-grid">
+              {KISI_KISI.map((k) => (
+                <details key={k.title} className="kisi-card">
+                  <summary>
+                    <span>
+                      <b>{k.title}</b>
+                      <small>{k.lomba}</small>
+                    </span>
+                  </summary>
+                  <div className="kisi-body">
+                    {k.intro.map((t) => (
+                      <p key={t}>{t}</p>
+                    ))}
+                    {k.sections.map((sec) => {
+                      const List = sec.numbered ? "ol" : "ul";
+                      return (
+                        <div key={sec.heading}>
+                          <h4>{sec.heading}</h4>
+                          <List>
+                            {sec.items.map((it) => (
+                              <li key={it}>{it}</li>
+                            ))}
+                          </List>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section id="kategori" className="about" style={{ scrollMarginTop: 90 }}>
@@ -292,7 +331,9 @@ export default async function Home() {
                         {c.composition_note && <li>📝 {c.composition_note}</li>}
                       </ul>
                       <div className="lomba-foot">
-                        <span className="chip yellow">{c.schedule_type === "pre_event" ? "Pre-Event" : "Hari H"}</span>
+                        <span className={`chip ${c.schedule_type === "pre_event" ? "yellow" : "green"}`}>
+                          {c.schedule_type === "pre_event" ? "Pre-Event" : "Hari H"}
+                        </span>
                         <span className="lomba-btn">Lihat Juknis</span>
                       </div>
                     </Link>

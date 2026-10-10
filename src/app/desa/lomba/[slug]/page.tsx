@@ -9,7 +9,8 @@ import type { OpenComp } from "@/lib/openEntry";
 import { DeleteButton } from "@/components/DeleteButton";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { displayName, kelasLabel } from "@/lib/participant";
-import { requiresMixedGender } from "@/lib/lomba";
+import { requiresMixedGender, teamBounds, teamRangeText } from "@/lib/lomba";
+import { isComplete, loadCompleteness } from "@/lib/entryOverview";
 import { beforeDeadline, fmtDateTime, GENDER_LABEL, isEligible, registrationStatus } from "@/lib/utils";
 import { CompIcon } from "@/lib/compIcon";
 import type { Competition, EventRow, Participant, Slot } from "@/lib/types";
@@ -42,7 +43,7 @@ export default async function LombaDetailPage({ params }: { params: Promise<{ sl
   const comp = compData as CompFull;
   comp.slots.sort((a, b) => a.sort_order - b.sort_order);
 
-  const [evRes, entRes, partRes, memRes] = await Promise.all([
+  const [evRes, entRes, partRes, memRes, completeMap] = await Promise.all([
     supabase.from("events").select("*").order("created_at").limit(1).maybeSingle(),
     supabase
       .from("entries")
@@ -53,6 +54,7 @@ export default async function LombaDetailPage({ params }: { params: Promise<{ sl
       .order("created_at"),
     supabase.from("participants").select("*").order("full_name"),
     supabase.from("entry_members").select("participant_id, entry:entries(competition:competitions(name))"),
+    loadCompleteness(supabase),
   ]);
 
   const reg = registrationStatus(evRes.data as EventRow | null);
@@ -114,7 +116,7 @@ export default async function LombaDetailPage({ params }: { params: Promise<{ sl
           <li>Kategori: {comp.age_label}</li>
           <li>
             {comp.participation_type === "team"
-              ? `Regu/tim${comp.team_size ? `, tepat ${comp.team_size} anggota` : " (jumlah anggota bebas)"}`
+              ? `Regu/tim, ${teamRangeText(comp)}`
               : "Perorangan"}
           </li>
           <li>
@@ -183,8 +185,11 @@ export default async function LombaDetailPage({ params }: { params: Promise<{ sl
                     </li>
                   ))}
                 </ul>
-                {!isOpen && comp.team_size !== null && e.members.length < comp.team_size && (
-                  <div className="chip yellow">Anggota belum lengkap</div>
+                {!isOpen && !isComplete(completeMap, e.id, e.members.length, comp) && (
+                  <div className="chip yellow">
+                    Anggota belum lengkap ({e.members.length}
+                    {teamBounds(comp).min !== null ? ` dari minimal ${teamBounds(comp).min}` : ""})
+                  </div>
                 )}
                 {comp.submission_mode === "online" && (
                   <div style={{ marginTop: 10 }}>
@@ -229,6 +234,7 @@ export default async function LombaDetailPage({ params }: { params: Promise<{ sl
             mixedGender={mixedGender}
             compositionNote={comp.composition_note}
             teamSize={comp.team_size}
+            teamMinSize={comp.team_min_size ?? null}
             isTeam={comp.participation_type === "team"}
             online={comp.submission_mode === "online"}
           />

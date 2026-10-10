@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { registrationStatus } from "@/lib/utils";
 import { CompIcon } from "@/lib/compIcon";
+import { isComplete, loadCompleteness } from "@/lib/entryOverview";
 import type { Competition, EventRow } from "@/lib/types";
 
 interface Row {
@@ -14,7 +14,7 @@ interface Row {
 export default async function DesaHome() {
   const { supabase } = await requireRole("village_admin");
 
-  const [evRes, compRes, entRes, partRes] = await Promise.all([
+  const [evRes, compRes, entRes, partRes, completeMap] = await Promise.all([
     supabase.from("events").select("*").order("created_at").limit(1).maybeSingle(),
     supabase
       .from("competitions")
@@ -26,6 +26,7 @@ export default async function DesaHome() {
       .select("id, competition_id, status, members:entry_members(participant_id)")
       .eq("status", "registered"),
     supabase.from("participants").select("id", { count: "exact", head: true }),
+    loadCompleteness(supabase),
   ]);
 
   const ev = evRes.data as EventRow | null;
@@ -36,8 +37,7 @@ export default async function DesaHome() {
   const rows = comps.map((c) => {
     const mine = entries.filter((e) => e.competition_id === c.id);
     const target = c.slots.length || c.max_entries_per_village;
-    const incomplete =
-      c.registration_mode !== "open" && mine.some((e) => e.members.length < (c.team_size ?? 1));
+    const incomplete = mine.some((e) => !isComplete(completeMap, e.id, e.members.length, c));
     return { c, registered: mine.length, target, incomplete };
   });
   const done = rows.filter((r) => r.target !== null && r.registered >= r.target && !r.incomplete).length;
@@ -75,7 +75,6 @@ export default async function DesaHome() {
                 <th>Kategori</th>
                 <th>Terdaftar</th>
                 <th>Status</th>
-                <th />
               </tr>
             </thead>
             <tbody>
@@ -102,11 +101,6 @@ export default async function DesaHome() {
                     ) : (
                       <span className="chip gray">Belum daftar</span>
                     )}
-                  </td>
-                  <td className="right">
-                    <Link className="btn soft sm" href={`/desa/lomba/${c.slug}`}>
-                      Kelola
-                    </Link>
                   </td>
                 </tr>
               ))}
