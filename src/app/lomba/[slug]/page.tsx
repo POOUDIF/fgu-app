@@ -36,12 +36,13 @@ export default async function LombaPublik({ params }: { params: Promise<{ slug: 
   return (
     <div className="container page">
       <Link className="btn ghost sm" href="/#lomba">
-        ← Semua lomba
+        ← Kembali
       </Link>
 
       <div className="card" style={{ marginTop: 14 }}>
         <div className="row">
           <span className="chip">{c.cluster}</span>
+          {c.registration_mode === "open" && <span className="chip green">Daftar tanpa login</span>}
           {c.submission_mode === "online" && <span className="chip yellow">Online</span>}
         </div>
         <div className="row" style={{ alignItems: "center", marginTop: 8 }}>
@@ -64,6 +65,16 @@ export default async function LombaPublik({ params }: { params: Promise<{ slug: 
               <b>Tempat:</b> {c.venue}
             </li>
           )}
+          {c.max_entries_per_village !== null && c.slots.length === 0 && (
+            <li>
+              <b>Kuota:</b> maksimal {c.max_entries_per_village} pendaftaran per desa
+            </li>
+          )}
+          {c.composition_note && (
+            <li>
+              <b>Catatan komposisi:</b> {c.composition_note}
+            </li>
+          )}
           {c.slots.length > 0 && (
             <li>
               <b>Slot per desa:</b> {c.slots.map((s) => s.label).join(", ")}
@@ -76,6 +87,16 @@ export default async function LombaPublik({ params }: { params: Promise<{ slug: 
           )}
         </ul>
       </div>
+
+      {c.registration_mode === "open" && (
+        <div className="alert info">
+          Lomba ini bisa didaftarkan langsung tanpa login (boleh banyak peserta sekaligus) di bagian{" "}
+          <Link href="/#pengumpulan" style={{ color: "var(--blue)", fontWeight: 800 }}>
+            Pengumpulan Karya
+          </Link>
+          .
+        </div>
+      )}
 
       {c.rules.length > 0 && (
         <div className="card">

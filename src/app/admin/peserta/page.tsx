@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
 import { StatusButton } from "@/components/AdminForms";
+import { displayName, kelasLabel } from "@/lib/participant";
 import { GENDER_LABEL } from "@/lib/utils";
 import { ExportButton } from "@/components/ExportButton";
 import { CompIcon } from "@/lib/compIcon";
@@ -11,7 +12,12 @@ interface EntryRow {
   disqualified_reason: string | null;
   team_name: string | null;
   submission_url: string | null;
-  competition: Pick<Competition, "id" | "name" | "team_size" | "submission_mode"> | null;
+  ig_username: string | null;
+  parent_name: string | null;
+  entry_type: "individual" | "team" | null;
+  members_note: string | null;
+  source: "village" | "public" | null;
+  competition: Pick<Competition, "id" | "name" | "team_size" | "submission_mode" | "registration_mode"> | null;
   village: { id: string; name: string } | null;
   slot: { label: string } | null;
   members: { participant: Participant | null }[];
@@ -28,7 +34,7 @@ export default async function AdminPeserta({
   let q = supabase
     .from("entries")
     .select(
-      "id, status, disqualified_reason, team_name, submission_url, competition:competitions(id,name,team_size,submission_mode), village:villages(id,name), slot:competition_slots(label), members:entry_members(participant:participants(*))",
+      "id, status, disqualified_reason, team_name, submission_url, ig_username, parent_name, entry_type, members_note, source, competition:competitions(id,name,team_size,submission_mode,registration_mode), village:villages(id,name), slot:competition_slots(label), members:entry_members(participant:participants(*))",
     );
   if (sp.lomba) q = q.eq("competition_id", sp.lomba);
   if (sp.desa) q = q.eq("village_id", sp.desa);
@@ -147,7 +153,7 @@ export default async function AdminPeserta({
               </thead>
               <tbody>
                 {entries.map((e) => {
-                  const need = e.competition?.team_size ?? 1;
+                  const need = e.competition?.registration_mode === "open" ? 0 : (e.competition?.team_size ?? 1);
                   const incomplete = e.members.length < need;
                   return (
                     <tr key={e.id}>
@@ -165,21 +171,35 @@ export default async function AdminPeserta({
                       <td>{e.village?.name}</td>
                       <td>
                         {e.team_name && <b>{e.team_name}</b>}
+                        {e.entry_type === "team" && <span className="chip">Tim</span>}
+                        {e.source === "public" && <span className="chip yellow">Umum (tanpa login)</span>}
+                        {(e.ig_username || e.parent_name || e.members_note) && (
+                          <div className="muted small">
+                            {[
+                              e.parent_name && `Orang tua: ${e.parent_name}`,
+                              e.ig_username && `IG: @${e.ig_username}`,
+                              e.members_note && `Anggota: ${e.members_note}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </div>
+                        )}
                         <ul style={{ margin: 0, paddingLeft: 16 }}>
                           {e.members.map(
                             (m) =>
                               m.participant && (
                                 <li key={m.participant.id}>
-                                  {m.participant.full_name}{" "}
+                                  {displayName(m.participant)}{" "}
                                   <span className="muted small">
-                                    {GENDER_LABEL[m.participant.gender]} · {m.participant.education_level}
-                                    {m.participant.grade ? ` kls ${m.participant.grade}` : ""} · {m.participant.age} th
+                                    {GENDER_LABEL[m.participant.gender]} ·{" "}
+                                    {kelasLabel(m.participant.education_level, m.participant.grade)}
+                                    {m.participant.age ? ` · ${m.participant.age} th` : ""}
                                   </span>
                                 </li>
                               ),
                           )}
                         </ul>
-                        {e.competition?.submission_mode === "online" && (
+                        {(e.competition?.submission_mode === "online" || !!e.submission_url) && (
                           <div className="small">
                             {e.submission_url ? (
                               <a href={e.submission_url} target="_blank" rel="noreferrer" style={{ color: "var(--blue)" }}>

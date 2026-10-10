@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isSuper, requireAdmin } from "@/lib/auth";
@@ -166,11 +167,8 @@ export default async function RincianNilai({ params }: { params: Promise<{ slug:
                   const key = `${d.criterion_group ?? ""}|${d.criterion_order}|${d.criterion_name}`;
                   if (!criteria.has(key)) criteria.set(key, d);
                 }
-                const crit = [...criteria.entries()].sort(
-                  ([, a], [, b]) =>
-                    (a.criterion_group ?? "").localeCompare(b.criterion_group ?? "") ||
-                    a.criterion_order - b.criterion_order,
-                );
+                // Urut sesuai sort_order kriteria (urutan grup mengikuti urutan di database).
+                const crit = [...criteria.entries()].sort(([, a], [, b]) => a.criterion_order - b.criterion_order);
                 const cell = new Map<string, Detail>();
                 const totals = new Map<string, number>();
                 for (const d of list) {
@@ -199,12 +197,17 @@ export default async function RincianNilai({ params }: { params: Promise<{ slug:
                           </tr>
                         </thead>
                         <tbody>
-                          {crit.map(([key, c]) => (
-                            <tr key={key}>
-                              <td>
-                                {c.criterion_group ? <span className="muted">{c.criterion_group} · </span> : null}
-                                {c.criterion_name}
-                              </td>
+                          {crit.map(([key, c], i) => (
+                            <Fragment key={key}>
+                              {c.criterion_group && c.criterion_group !== crit[i - 1]?.[1].criterion_group && (
+                                <tr>
+                                  <th colSpan={judges.length + 1} style={{ background: "#f3f7fb", textAlign: "left" }}>
+                                    {c.criterion_group}
+                                  </th>
+                                </tr>
+                              )}
+                            <tr>
+                              <td>{c.criterion_name}</td>
                               {judges.map((j) => {
                                 const d = cell.get(`${key}#${j.id}`);
                                 return (
@@ -232,6 +235,7 @@ export default async function RincianNilai({ params }: { params: Promise<{ slug:
                                 );
                               })}
                             </tr>
+                            </Fragment>
                           ))}
                           <tr>
                             <td>

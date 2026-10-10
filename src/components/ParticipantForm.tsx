@@ -8,16 +8,18 @@ import { PHOTO_BUCKET, type ProcessedPhoto } from "@/lib/photo";
 import {
   binBinti,
   firstError,
-  gradeRequired,
-  usesGrade,
+  KELAS_GROUPS,
+  KELAS_OPTIONS,
+  kelasValue,
+  parseKelas,
   validateParticipant,
   type ParticipantErrors,
   type ParticipantField,
 } from "@/lib/participant";
-import { LEVELS } from "@/lib/utils";
-import type { ActionState, Participant } from "@/lib/types";
+import { planAttach, quotaText, type LombaOption } from "@/lib/lomba";
+import type { ActionState, Gender, Participant } from "@/lib/types";
 
-const BLANK = { full_name: "", parent_name: "", gender: "", education_level: "", grade: "", age: "" };
+const BLANK = { full_name: "", parent_name: "", gender: "", kelas: "", lomba_id: "" };
 
 function Label({ htmlFor, required, children }: { htmlFor: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -43,6 +45,7 @@ export function ParticipantForm({
   photoUrl,
   submitLabel,
   resetOnSuccess,
+  lombaOptions,
 }: {
   action: (fd: FormData) => Promise<ActionState>;
   initial?: Participant;
@@ -50,6 +53,8 @@ export function ParticipantForm({
   photoUrl?: string | null;
   submitLabel: string;
   resetOnSuccess?: boolean;
+  /** Hanya saat menambah peserta baru: lomba yang bisa dipilih (disaring sesuai kelas). */
+  lombaOptions?: LombaOption[];
 }) {
   const [v, setV] = useState(
     initial
@@ -57,9 +62,8 @@ export function ParticipantForm({
           full_name: initial.full_name,
           parent_name: initial.parent_name ?? "",
           gender: initial.gender as string,
-          education_level: initial.education_level as string,
-          grade: initial.grade?.toString() ?? "",
-          age: initial.age.toString(),
+          kelas: kelasValue(initial.education_level, initial.grade),
+          lomba_id: "",
         }
       : BLANK,
   );
@@ -77,8 +81,30 @@ export function ParticipantForm({
     setErrors((cur) => (cur[k as ParticipantField] ? { ...cur, [k]: undefined } : cur));
   };
 
-  const showGrade = v.education_level === "" || usesGrade(v.education_level);
-  const needGrade = gradeRequired(v.education_level);
+  const needLomba = !initial;
+  const kelas = parseKelas(v.kelas);
+  const lombaChoices = (lombaOptions ?? []).flatMap((o) => {
+    if (!kelas || (v.gender !== "L" && v.gender !== "P")) return [];
+    const plan = planAttach(o, { gender: v.gender as Gender, education_level: kelas.level, grade: kelas.grade });
+    if (plan.kind === "none" && !plan.eligible) return [];
+    return [{ o, full: plan.kind === "none", reason: plan.kind === "none" ? plan.reason : "" }];
+  });
+
+  const chosenLomba = (lombaOptions ?? []).find((o) => o.id === v.lomba_id);
+
+  // Ganti kelas/jenis kelamin: kosongkan pilihan lomba bila tidak lagi sesuai.
+  const resetLombaIfInvalid = (next: { gender: string; kelas: string }) =>
+    setV((cur) => {
+      const k = parseKelas(next.kelas);
+      if (!cur.lomba_id) return cur;
+      const o = (lombaOptions ?? []).find((x) => x.id === cur.lomba_id);
+      const ok =
+        !!o &&
+        !!k &&
+        (next.gender === "L" || next.gender === "P") &&
+        planAttach(o, { gender: next.gender as Gender, education_level: k.level, grade: k.grade }).kind !== "none";
+      return ok ? cur : { ...cur, lomba_id: "" };
+    });
 
   const props = (f: ParticipantField) => ({
     id: f,
@@ -89,7 +115,11 @@ export function ParticipantForm({
   // Foto diunggah langsung dari browser ke Storage (batas 5 MB melebihi batas body server
   // action), lalu server action hanya menerima path-nya.
   async function submit(fd: FormData): Promise<ActionState> {
-    const found = validateParticipant({ ...v, hasPhoto: !!photo.current || !!initial?.photo_path });
+    const found = validateParticipant({
+      ...v,
+      needLomba,
+      hasPhoto: !!photo.current || !!initial?.photo_path,
+    });
     setErrors(found);
     const first = firstError(found);
     if (first) {
@@ -182,7 +212,10 @@ export function ParticipantForm({
             required
             aria-required="true"
             value={v.gender}
-            onChange={set("gender")}
+            onChange={(e) => {
+              set("gender")(e);
+              resetLombaIfInvalid({ gender: e.target.value, kelas: v.kelas });
+            }}
           >
             <option value="">Pilih…</option>
             <option value="L">Putra</option>
@@ -191,69 +224,80 @@ export function ParticipantForm({
           <FieldError id="gender-error" message={errors.gender} />
         </div>
         <div>
-          <Label htmlFor="education_level" required>
-            Jenjang
+          <Label htmlFor="kelas" required>
+            Kelas
           </Label>
           <select
-            {...props("education_level")}
-            name="education_level"
+            {...props("kelas")}
+            name="kelas"
             required
             aria-required="true"
-            value={v.education_level}
+            value={v.kelas}
             onChange={(e) => {
-              set("education_level")(e);
-              if (!usesGrade(e.target.value)) {
-                setV((cur) => ({ ...cur, grade: "" }));
-                setErrors((cur) => ({ ...cur, grade: undefined }));
-              }
+              set("kelas")(e);
+              resetLombaIfInvalid({ gender: v.gender, kelas: e.target.value });
             }}
           >
             <option value="">Pilih…</option>
-            {LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
+            {KELAS_GROUPS.map((g) => (
+              <optgroup key={g} label={g}>
+                {KELAS_OPTIONS.filter((k) => k.group === g).map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
-          <FieldError id="education_level-error" message={errors.education_level} />
-        </div>
-        {showGrade && (
-          <div>
-            <Label htmlFor="grade" required={needGrade}>
-              Kelas
-            </Label>
-            <input
-              {...props("grade")}
-              name="grade"
-              type="number"
-              min={1}
-              max={12}
-              required={needGrade}
-              aria-required={needGrade}
-              value={v.grade}
-              onChange={set("grade")}
-            />
-            <FieldError id="grade-error" message={errors.grade} />
-          </div>
-        )}
-        <div>
-          <Label htmlFor="age" required>
-            Usia (tahun)
-          </Label>
-          <input
-            {...props("age")}
-            name="age"
-            type="number"
-            min={1}
-            max={100}
-            required
-            aria-required="true"
-            value={v.age}
-            onChange={set("age")}
-          />
-          <FieldError id="age-error" message={errors.age} />
+          <FieldError id="kelas-error" message={errors.kelas} />
         </div>
       </div>
+      {needLomba && (
+        <div style={{ marginTop: 14 }}>
+          <Label htmlFor="lomba_id" required>
+            Lomba yang diikuti
+          </Label>
+          <select
+            {...props("lomba_id")}
+            name="lomba_id"
+            required
+            aria-required="true"
+            value={v.lomba_id}
+            disabled={lombaChoices.length === 0}
+            onChange={set("lomba_id")}
+          >
+            <option value="">
+              {!kelas || !v.gender
+                ? "Pilih jenis kelamin dan kelas terlebih dahulu"
+                : lombaChoices.length === 0
+                  ? "Belum ada lomba untuk kelas ini"
+                  : "Pilih lomba…"}
+            </option>
+            {[...new Set(lombaChoices.map(({ o }) => o.cluster ?? "Lomba"))].map((cluster) => (
+              <optgroup key={cluster} label={cluster}>
+                {lombaChoices
+                  .filter(({ o }) => (o.cluster ?? "Lomba") === cluster)
+                  .map(({ o, full, reason }) => {
+                    const q = quotaText(o);
+                    return (
+                      <option key={o.id} value={o.id} disabled={full}>
+                        {o.name} — {o.age_label}
+                        {q ? ` (${q})` : ""}
+                        {full ? (reason.startsWith("Kuota") ? " · kuota desa penuh" : " · butuh peserta lawan jenis") : ""}
+                      </option>
+                    );
+                  })}
+              </optgroup>
+            ))}
+          </select>
+          {chosenLomba?.composition_note && <p className="field-hint">📝 {chosenLomba.composition_note}</p>}
+          <p className="field-hint">
+            Daftar lomba menyesuaikan kelas dan jenis kelamin peserta. Dakwah Online, Mewarnai, Karya Tulis, dan
+            Video Campaign didaftarkan dari <b>Ringkasan</b> (tombol Kelola pada lomba itu).
+          </p>
+          <FieldError id="lomba_id-error" message={errors.lomba_id} />
+        </div>
+      )}
       <div style={{ marginTop: 14 }}>
         <PhotoField
           initialUrl={photoUrl}

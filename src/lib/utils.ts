@@ -1,4 +1,4 @@
-import type { Competition, Gender, Level, Participant } from "./types";
+import type { Competition, Gender, Level } from "./types";
 
 export const GENDER_LABEL: Record<Gender, string> = { L: "Putra", P: "Putri" };
 export const LEVEL_LABEL: Record<Level, string> = {
@@ -75,10 +75,15 @@ export function dbError(e: { message: string; code?: string } | null | undefined
   return m;
 }
 
-/** Apakah peserta memenuhi syarat dasar lomba (pre-filter; validasi akhir di database). */
-export function isEligible(p: Participant, c: Competition) {
+/**
+ * Apakah peserta memenuhi syarat dasar lomba (pre-filter; validasi akhir di database).
+ * Berdasarkan kelas (jenjang + kelas SD) dan jenis kelamin; usia sengaja tidak dipakai.
+ */
+export function isEligible(
+  p: { education_level: Level; grade: number | null; gender: Gender },
+  c: Pick<Competition, "levels" | "grade_min" | "grade_max" | "allowed_genders">,
+) {
   if (c.levels && !c.levels.includes(p.education_level)) return false;
-  if (c.max_age !== null && p.age > c.max_age) return false;
   if (c.allowed_genders && !c.allowed_genders.includes(p.gender)) return false;
   if (p.education_level === "SD" && (c.grade_min !== null || c.grade_max !== null)) {
     if (p.grade === null) return false;

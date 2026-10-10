@@ -2,15 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { CompIcon } from "@/lib/compIcon";
+import { displayName } from "@/lib/participant";
 import type { Competition } from "@/lib/types";
 
 interface EntryRow {
   id: string;
   team_name: string | null;
   submission_url: string | null;
+  ig_username: string | null;
+  parent_name: string | null;
   slot: { label: string } | null;
   village: { name: string } | null;
-  members: { participant: { full_name: string } | null }[];
+  members: { participant: { full_name: string; display_name: string | null } | null }[];
 }
 
 export default async function JuriLombaPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -25,7 +28,7 @@ export default async function JuriLombaPage({ params }: { params: Promise<{ slug
     supabase
       .from("entries")
       .select(
-        "id, team_name, submission_url, slot:competition_slots(label), village:villages(name), members:entry_members(participant:participants(full_name))",
+        "id, team_name, submission_url, ig_username, parent_name, slot:competition_slots(label), village:villages(name), members:entry_members(participant:participants(full_name,display_name))",
       )
       .eq("competition_id", comp.id)
       .eq("status", "registered"),
@@ -51,7 +54,7 @@ export default async function JuriLombaPage({ params }: { params: Promise<{ slug
           </div>
         </div>
         <Link className="btn ghost sm" href="/juri">
-          ← Semua lomba
+          ← Kembali
         </Link>
       </div>
 
@@ -77,7 +80,7 @@ export default async function JuriLombaPage({ params }: { params: Promise<{ slug
             <tbody>
               {entries.map((e) => {
                 const isDone = scored.has(e.id);
-                const names = e.members.map((m) => m.participant?.full_name).filter(Boolean).join(", ");
+                const names = e.members.map((m) => (m.participant ? displayName(m.participant) : null)).filter(Boolean).join(", ");
                 return (
                   <tr key={e.id}>
                     <td>
@@ -86,7 +89,14 @@ export default async function JuriLombaPage({ params }: { params: Promise<{ slug
                     <td>
                       {e.slot && <span className="chip">{e.slot.label}</span>}{" "}
                       {e.team_name && <b>{e.team_name}: </b>}
-                      {names || "—"}
+                      {names || (e.team_name ? "" : "—")}
+                      {(e.ig_username || e.parent_name) && (
+                        <div className="muted small">
+                          {[e.parent_name && `Orang tua: ${e.parent_name}`, e.ig_username && `IG: @${e.ig_username}`]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      )}
                       {e.submission_url && (
                         <div className="small">
                           <a href={e.submission_url} target="_blank" rel="noreferrer" style={{ color: "var(--blue)" }}>

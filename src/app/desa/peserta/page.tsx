@@ -4,6 +4,8 @@ import { createParticipant, deleteParticipant } from "@/app/actions/desa";
 import { ParticipantForm } from "@/components/ParticipantForm";
 import { DeleteButton } from "@/components/DeleteButton";
 import { signedPhotoUrls } from "@/lib/photoUrl";
+import { loadLombaOptions } from "@/lib/lombaOptions";
+import { displayName, kelasLabel } from "@/lib/participant";
 import { GENDER_LABEL } from "@/lib/utils";
 import type { Participant } from "@/lib/types";
 
@@ -20,19 +22,21 @@ export default async function PesertaPage() {
   const rows = (data ?? []) as Row[];
   const THUMB = 40;
   const photos = await signedPhotoUrls(supabase, rows.map((p) => p.photo_path), THUMB);
+  const lombaOptions = await loadLombaOptions(supabase, profile.village_id!);
 
   return (
     <div className="stack">
       <div className="card">
         <h2>Tambah peserta</h2>
         <p className="muted">
-          Data peserta dipakai ulang saat mendaftarkan lomba. Satu peserta hanya boleh ikut satu
-          lomba.
+          Pilih kelas peserta, lalu pilih lomba yang sesuai dengan kelasnya. Satu peserta hanya boleh
+          ikut satu lomba.
         </p>
         <ParticipantForm
           action={createParticipant}
           villageId={profile.village_id!}
           submitLabel="Tambah peserta"
+          lombaOptions={lombaOptions}
           resetOnSuccess
         />
       </div>
@@ -49,8 +53,7 @@ export default async function PesertaPage() {
                   <th>Foto</th>
                   <th>Nama</th>
                   <th>L/P</th>
-                  <th>Jenjang</th>
-                  <th>Usia</th>
+                  <th>Kelas</th>
                   <th>Terdaftar di</th>
                   <th />
                 </tr>
@@ -79,14 +82,12 @@ export default async function PesertaPage() {
                         )}
                       </td>
                       <td>
-                        <b>{p.full_name}</b>
+                        <b>{displayName(p)}</b>
                       </td>
                       <td>{GENDER_LABEL[p.gender]}</td>
                       <td>
-                        {p.education_level}
-                        {p.grade ? ` kelas ${p.grade}` : ""}
+                        {kelasLabel(p.education_level, p.grade)}
                       </td>
-                      <td>{p.age} th</td>
                       <td>
                         {comps.length ? (
                           comps.map((n) => (
@@ -106,7 +107,7 @@ export default async function PesertaPage() {
                           <DeleteButton
                             action={deleteParticipant}
                             id={p.id}
-                            confirm={`Hapus peserta ${p.full_name}?`}
+                            confirm={`Hapus peserta ${displayName(p)}?`}
                           />
                         </div>
                       </td>

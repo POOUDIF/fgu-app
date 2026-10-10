@@ -1,6 +1,8 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
+import { displayName } from "@/lib/participant";
 import { ScoreForm } from "@/components/ScoreForm";
 import { fmtScore } from "@/lib/utils";
 import type { Competition, Criterion } from "@/lib/types";
@@ -9,9 +11,11 @@ interface EntryRow {
   id: string;
   team_name: string | null;
   submission_url: string | null;
+  ig_username: string | null;
+  parent_name: string | null;
   slot: { label: string } | null;
   village: { name: string } | null;
-  members: { participant: { full_name: string } | null }[];
+  members: { participant: { full_name: string; display_name: string | null } | null }[];
 }
 
 export default async function NilaiPage({
@@ -30,7 +34,7 @@ export default async function NilaiPage({
     supabase
       .from("entries")
       .select(
-        "id, team_name, submission_url, slot:competition_slots(label), village:villages(name), members:entry_members(participant:participants(full_name))",
+        "id, team_name, submission_url, ig_username, parent_name, slot:competition_slots(label), village:villages(name), members:entry_members(participant:participants(full_name,display_name))",
       )
       .eq("id", entryId)
       .eq("competition_id", comp.id)
@@ -46,7 +50,7 @@ export default async function NilaiPage({
   );
   const mine = new Map((scoreRes.data ?? []).map((s) => [s.criterion_id as string, Number(s.score)]));
   const locked = mine.size > 0;
-  const names = entry.members.map((m) => m.participant?.full_name).filter(Boolean).join(", ");
+  const names = entry.members.map((m) => (m.participant ? displayName(m.participant) : null)).filter(Boolean).join(", ");
 
   const total = (() => {
     if (comp.scoring_method === "points") return [...mine.values()].reduce((a, b) => a + b, 0);
@@ -69,10 +73,17 @@ export default async function NilaiPage({
           <span className="chip">{entry.village?.name}</span>
           {entry.slot && <span className="chip gray">{entry.slot.label}</span>}
           <h3 style={{ margin: 0 }}>
-            {entry.team_name ? `${entry.team_name} — ` : ""}
-            {names || "—"}
+            {entry.team_name ? `${entry.team_name}${names ? " — " : ""}` : ""}
+            {names || (entry.team_name ? "" : "—")}
           </h3>
         </div>
+        {(entry.ig_username || entry.parent_name) && (
+          <div className="muted small" style={{ marginTop: 4 }}>
+            {[entry.parent_name && `Orang tua: ${entry.parent_name}`, entry.ig_username && `IG: @${entry.ig_username}`]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        )}
         {entry.submission_url && (
           <a href={entry.submission_url} target="_blank" rel="noreferrer" style={{ color: "var(--blue)" }}>
             Buka karya ↗
@@ -95,17 +106,23 @@ export default async function NilaiPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {criteria.map((c) => (
-                    <tr key={c.id}>
-                      <td>
-                        {c.group_name ? <span className="muted">{c.group_name} · </span> : null}
-                        {c.name}
-                      </td>
-                      <td>
-                        <b>{fmtScore(mine.get(c.id))}</b>{" "}
-                        <span className="muted small">/ {fmtScore(c.max_score)}</span>
-                      </td>
-                    </tr>
+                  {criteria.map((c, i) => (
+                    <Fragment key={c.id}>
+                      {c.group_name && c.group_name !== criteria[i - 1]?.group_name && (
+                        <tr>
+                          <th colSpan={2} style={{ background: "#f3f7fb", textAlign: "left" }}>
+                            {c.group_name}
+                          </th>
+                        </tr>
+                      )}
+                      <tr>
+                        <td>{c.name}</td>
+                        <td>
+                          <b>{fmtScore(mine.get(c.id))}</b>{" "}
+                          <span className="muted small">/ {fmtScore(c.max_score)}</span>
+                        </td>
+                      </tr>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

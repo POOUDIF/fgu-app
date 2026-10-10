@@ -36,7 +36,8 @@ export default async function DesaHome() {
   const rows = comps.map((c) => {
     const mine = entries.filter((e) => e.competition_id === c.id);
     const target = c.slots.length || c.max_entries_per_village;
-    const incomplete = mine.some((e) => e.members.length < (c.team_size ?? 1));
+    const incomplete =
+      c.registration_mode !== "open" && mine.some((e) => e.members.length < (c.team_size ?? 1));
     return { c, registered: mine.length, target, incomplete };
   });
   const done = rows.filter((r) => r.target !== null && r.registered >= r.target && !r.incomplete).length;
